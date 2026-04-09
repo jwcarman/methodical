@@ -57,12 +57,13 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   @SuppressWarnings("unchecked")
   private <A> ParameterResolver<? super A> findResolver(
       Class<A> argumentType, ParameterInfo paramInfo) {
-    for (ResolvedParameterResolver<?> resolver : resolvers) {
-      if (resolver.argumentType().isAssignableFrom(argumentType) && resolver.supports(paramInfo)) {
-        return (ParameterResolver<? super A>) resolver.resolver();
-      }
-    }
-    return null;
+    return (ParameterResolver<? super A>)
+        resolvers.stream()
+            .filter(r -> r.argumentType().isAssignableFrom(argumentType))
+            .map(ResolvedParameterResolver::resolver)
+            .filter(r -> r.supports(paramInfo))
+            .findFirst()
+            .orElse(null);
   }
 
   private static <A> ResolvedParameterResolver<A> wrap(ParameterResolver<A> resolver) {
@@ -72,9 +73,5 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   }
 
   private record ResolvedParameterResolver<A>(
-      ParameterResolver<A> resolver, Class<A> argumentType) {
-    boolean supports(ParameterInfo info) {
-      return resolver.supports(info);
-    }
-  }
+      ParameterResolver<A> resolver, Class<A> argumentType) {}
 }

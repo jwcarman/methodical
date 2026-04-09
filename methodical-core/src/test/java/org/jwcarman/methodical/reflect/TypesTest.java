@@ -17,6 +17,7 @@ package org.jwcarman.methodical.reflect;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.reflect.Parameter;
 import org.junit.jupiter.api.Test;
 
 class TypesTest {
@@ -52,5 +53,32 @@ class TypesTest {
   void shouldResolveSecondOfTwoTypeParams() {
     Class<?> typeParam = Types.typeParamFromClass(ConcreteTwo.class, TwoTypeParams.class, 1);
     assertThat(typeParam).isEqualTo(Integer.class);
+  }
+
+  public static class SimpleTarget {
+    public void method(String name) {
+      // no-op
+    }
+  }
+
+  @Test
+  void resolveParameterTypeShouldReturnDeclaredTypeForNonGenericParam() throws Exception {
+    Parameter param = SimpleTarget.class.getMethod("method", String.class).getParameters()[0];
+    Class<?> resolved = Types.resolveParameterType(param, SimpleTarget.class);
+    assertThat(resolved).isEqualTo(String.class);
+  }
+
+  public static class RawGenericTarget<T> {
+    public void method(T value) {
+      // no-op
+    }
+  }
+
+  @Test
+  void resolveParameterTypeShouldFallBackWhenGenericNotResolvable() throws Exception {
+    Parameter param = RawGenericTarget.class.getMethod("method", Object.class).getParameters()[0];
+    // RawGenericTarget used directly — T is unbound, getRawType returns null
+    Class<?> resolved = Types.resolveParameterType(param, RawGenericTarget.class);
+    assertThat(resolved).isEqualTo(Object.class);
   }
 }
