@@ -18,6 +18,7 @@ package org.jwcarman.methodical;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang3.reflect.TypeUtils;
@@ -35,7 +36,7 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   public <A> MethodInvoker<A> create(Method method, Object target, Class<A> argumentType) {
     Parameter[] parameters = method.getParameters();
     ParameterInfo[] paramInfos = new ParameterInfo[parameters.length];
-    ParameterResolver<?>[] assigned = new ParameterResolver<?>[parameters.length];
+    List<ParameterResolver<? super A>> assigned = new ArrayList<>(parameters.length);
 
     for (int i = 0; i < parameters.length; i++) {
       Type genericType = parameters[i].getParameterizedType();
@@ -44,17 +45,21 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
               ? TypeUtils.getRawType(genericType, target.getClass())
               : parameters[i].getType();
       paramInfos[i] = ParameterInfo.of(parameters[i], i, resolvedType, genericType);
-
-      for (ResolvedParameterResolver resolver : resolvers) {
-        if (resolver.argumentType().isAssignableFrom(argumentType)
-            && resolver.supports(paramInfos[i])) {
-          assigned[i] = resolver.delegate();
-          break;
-        }
-      }
+      assigned.add(findResolver(argumentType, paramInfos[i]));
     }
 
     return new DefaultMethodInvoker<>(method, target, paramInfos, assigned);
+  }
+
+  @SuppressWarnings("unchecked")
+  private <A> ParameterResolver<? super A> findResolver(
+      Class<A> argumentType, ParameterInfo paramInfo) {
+    for (ResolvedParameterResolver resolver : resolvers) {
+      if (resolver.argumentType().isAssignableFrom(argumentType) && resolver.supports(paramInfo)) {
+        return (ParameterResolver<? super A>) resolver.delegate();
+      }
+    }
+    return null;
   }
 
   private static class ResolvedParameterResolver {

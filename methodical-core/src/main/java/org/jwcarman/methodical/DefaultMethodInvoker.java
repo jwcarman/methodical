@@ -17,6 +17,7 @@ package org.jwcarman.methodical;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.List;
 
 /**
  * Default {@link MethodInvoker} implementation that resolves arguments via assigned {@link
@@ -27,11 +28,14 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   private final Method method;
   private final Object target;
   private final ParameterInfo[] paramInfos;
-  private final ParameterResolver<?>[] resolvers;
+  private final List<ParameterResolver<? super A>> resolvers;
   private final boolean isVoid;
 
   DefaultMethodInvoker(
-      Method method, Object target, ParameterInfo[] paramInfos, ParameterResolver<?>[] resolvers) {
+      Method method,
+      Object target,
+      ParameterInfo[] paramInfos,
+      List<ParameterResolver<? super A>> resolvers) {
     this.method = method;
     this.target = target;
     this.paramInfos = paramInfos;
@@ -56,12 +60,11 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     }
   }
 
-  @SuppressWarnings("unchecked")
   private Object[] resolveArguments(A argument) {
     Object[] args = new Object[paramInfos.length];
     for (int i = 0; i < paramInfos.length; i++) {
-      if (resolvers[i] != null) {
-        args[i] = ((ParameterResolver<Object>) resolvers[i]).resolve(paramInfos[i], argument);
+      if (resolvers.get(i) != null) {
+        args[i] = resolvers.get(i).resolve(paramInfos[i], argument);
       }
     }
     return args;
