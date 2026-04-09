@@ -24,7 +24,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 
-@AutoConfiguration(before = MethodicalAutoConfiguration.class)
+@AutoConfiguration(
+    before = MethodicalAutoConfiguration.class,
+    afterName = "org.springframework.boot.autoconfigure.gson.GsonAutoConfiguration")
 @ConditionalOnClass(name = "com.google.gson.Gson")
 @ConditionalOnBean(Gson.class)
 public class GsonAutoConfiguration {

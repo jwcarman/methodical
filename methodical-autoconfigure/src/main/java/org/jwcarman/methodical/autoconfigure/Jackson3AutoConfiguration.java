@@ -19,12 +19,15 @@ import org.jwcarman.methodical.jackson3.Jackson3ParameterResolver;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import tools.jackson.databind.ObjectMapper;
 
-@AutoConfiguration(before = MethodicalAutoConfiguration.class)
+@AutoConfiguration(
+    before = MethodicalAutoConfiguration.class,
+    after = JacksonAutoConfiguration.class)
 @ConditionalOnClass(name = "tools.jackson.databind.ObjectMapper")
 @ConditionalOnBean(ObjectMapper.class)
 public class Jackson3AutoConfiguration {
