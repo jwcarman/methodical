@@ -1,5 +1,17 @@
 # Methodical
 
+[![CI](https://github.com/jwcarman/methodical/actions/workflows/maven.yml/badge.svg)](https://github.com/jwcarman/methodical/actions/workflows/maven.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Java](https://img.shields.io/badge/dynamic/xml?url=https://raw.githubusercontent.com/jwcarman/methodical/main/pom.xml&query=//*[local-name()='java.version']/text()&label=Java&color=orange)](https://openjdk.org/)
+[![Maven Central](https://img.shields.io/maven-central/v/org.jwcarman.methodical/methodical-core)](https://central.sonatype.com/artifact/org.jwcarman.methodical/methodical-core)
+
+[![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=jwcarman_methodical&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=jwcarman_methodical)
+[![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=jwcarman_methodical&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=jwcarman_methodical)
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=jwcarman_methodical&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=jwcarman_methodical)
+[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=jwcarman_methodical&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=jwcarman_methodical)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=jwcarman_methodical&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=jwcarman_methodical)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=jwcarman_methodical&metric=coverage)](https://sonarcloud.io/summary/new_code?id=jwcarman_methodical)
+
 Pluggable reflection-based method invocation for Java. Resolve method arguments from any source — JSON, maps, dependency injection contexts — through a simple `ParameterResolver<A>` SPI.
 
 ## Quick Start
