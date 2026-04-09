@@ -18,6 +18,8 @@ package org.jwcarman.methodical.gson;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonSyntaxException;
+import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 
@@ -43,7 +45,17 @@ public class GsonParameterResolver implements ParameterResolver<JsonElement> {
     if (element == null || element.isJsonNull()) {
       return null;
     }
-    return gson.fromJson(element, info.resolvedType());
+    return deserialize(info, element);
+  }
+
+  private Object deserialize(ParameterInfo info, JsonElement element) {
+    try {
+      return gson.fromJson(element, info.resolvedType());
+    } catch (JsonSyntaxException e) {
+      throw new ParameterResolutionException(
+          String.format("Unable to deserialize parameter \"%s\": %s", info.name(), e.getMessage()),
+          e);
+    }
   }
 
   private JsonElement extractElement(ParameterInfo info, JsonElement params) {

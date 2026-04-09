@@ -18,7 +18,7 @@ package org.jwcarman.methodical.jackson2;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
-import org.jwcarman.methodical.MethodInvocationException;
+import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 
@@ -59,7 +59,7 @@ public class Jackson2ParameterResolver implements ParameterResolver<JsonNode> {
     try {
       return mapper.readerFor(info.resolvedType()).readValue(mapper.treeAsTokens(node));
     } catch (IOException e) {
-      throw new MethodInvocationException(
+      throw new ParameterResolutionException(
           String.format("Unable to deserialize parameter \"%s\": %s", info.name(), e.getMessage()),
           e);
     }

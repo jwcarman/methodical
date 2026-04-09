@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0
+
+### New Types
+- `MethodicalException` — abstract base exception for all Methodical errors
+- `ParameterResolutionException` — thrown when a resolver fails to deserialize a parameter value
+- Exception hierarchy: `MethodicalException` ← `MethodInvocationException` (reflection/checked), `ParameterResolutionException` (deserialization)
+
+### Changes
+- `MethodInvocationException` now extends `MethodicalException` (was `RuntimeException`)
+- All JSON resolvers (Jackson 2, Jackson 3, Gson) throw `ParameterResolutionException` on deserialization failure
+- Callers can catch `MethodicalException` for broad handling, or specific subtypes for granular control
+
 ## 0.1.0
 
 Initial release — pluggable reflection-based method invocation for Java.

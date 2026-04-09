@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.jwcarman.methodical.MethodInvocationException;
+import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -104,7 +104,7 @@ class Jackson3ParameterResolverTest {
     ParameterInfo info = paramInfo("value", 0, int.class);
     JsonNode params = mapper.readTree("{\"value\": \"not a number\"}");
     assertThatThrownBy(() -> resolver.resolve(info, params))
-        .isInstanceOf(MethodInvocationException.class)
+        .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("Unable to deserialize parameter");
   }
 

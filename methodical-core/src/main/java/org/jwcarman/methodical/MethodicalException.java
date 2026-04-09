@@ -15,9 +15,9 @@
  */
 package org.jwcarman.methodical;
 
-/** Thrown when method invocation fails due to reflection errors or checked exceptions. */
-public class MethodInvocationException extends MethodicalException {
-  public MethodInvocationException(String message, Throwable cause) {
+/** Base exception for all Methodical errors. */
+public abstract class MethodicalException extends RuntimeException {
+  public MethodicalException(String message, Throwable cause) {
     super(message, cause);
   }
 }

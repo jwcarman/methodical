@@ -15,9 +15,9 @@
  */
 package org.jwcarman.methodical;
 
-/** Thrown when method invocation fails due to reflection errors or checked exceptions. */
-public class MethodInvocationException extends MethodicalException {
-  public MethodInvocationException(String message, Throwable cause) {
+/** Thrown when a parameter resolver fails to resolve or deserialize a parameter value. */
+public class ParameterResolutionException extends MethodicalException {
+  public ParameterResolutionException(String message, Throwable cause) {
     super(message, cause);
   }
 }

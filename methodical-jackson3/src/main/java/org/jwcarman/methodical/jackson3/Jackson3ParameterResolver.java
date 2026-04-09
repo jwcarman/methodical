@@ -15,7 +15,7 @@
  */
 package org.jwcarman.methodical.jackson3;
 
-import org.jwcarman.methodical.MethodInvocationException;
+import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 import tools.jackson.core.JacksonException;
@@ -59,7 +59,7 @@ public class Jackson3ParameterResolver implements ParameterResolver<JsonNode> {
     try {
       return mapper.readerFor(info.resolvedType()).readValue(mapper.treeAsTokens(node));
     } catch (JacksonException e) {
-      throw new MethodInvocationException(
+      throw new ParameterResolutionException(
           String.format("Unable to deserialize parameter \"%s\": %s", info.name(), e.getMessage()),
           e);
     }

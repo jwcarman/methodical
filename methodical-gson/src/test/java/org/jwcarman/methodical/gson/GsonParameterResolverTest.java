@@ -16,6 +16,7 @@
 package org.jwcarman.methodical.gson;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
@@ -88,6 +89,15 @@ class GsonParameterResolverTest {
   void shouldAlwaysReturnTrueForSupports() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
     assertThat(resolver.supports(info)).isTrue();
+  }
+
+  @Test
+  void shouldThrowParameterResolutionExceptionOnDeserializationError() throws Exception {
+    ParameterInfo info = paramInfo("value", 0, int.class);
+    JsonElement params = JsonParser.parseString("{\"value\": \"not a number\"}");
+    assertThatThrownBy(() -> resolver.resolve(info, params))
+        .isInstanceOf(org.jwcarman.methodical.ParameterResolutionException.class)
+        .hasMessageContaining("Unable to deserialize parameter");
   }
 
   @Test
