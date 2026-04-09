@@ -20,8 +20,8 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.apache.commons.lang3.reflect.TypeUtils;
+import org.jwcarman.methodical.reflect.Types;
 
 /** Default implementation of {@link MethodInvokerFactory}. */
 public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
@@ -66,21 +66,9 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   }
 
   private static <A> ResolvedParameterResolver<A> wrap(ParameterResolver<A> resolver) {
-    return new ResolvedParameterResolver<>(resolver, resolveArgumentType(resolver));
-  }
-
-  @SuppressWarnings("unchecked")
-  private static <A> Class<A> resolveArgumentType(ParameterResolver<A> resolver) {
-    Map<java.lang.reflect.TypeVariable<?>, Type> typeArgs =
-        TypeUtils.getTypeArguments(resolver.getClass(), ParameterResolver.class);
-    if (typeArgs != null && !typeArgs.isEmpty()) {
-      Type argType = typeArgs.values().iterator().next();
-      Class<?> raw = TypeUtils.getRawType(argType, null);
-      if (raw != null) {
-        return (Class<A>) raw;
-      }
-    }
-    return (Class<A>) (Class<?>) Object.class;
+    Class<A> argumentType =
+        Types.typeParamFromClass(resolver.getClass(), ParameterResolver.class, 0);
+    return new ResolvedParameterResolver<>(resolver, argumentType);
   }
 
   private record ResolvedParameterResolver<A>(
