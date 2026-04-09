@@ -117,8 +117,22 @@ Register as a Spring bean — it's automatically picked up by the factory. Use `
 
 ## Exception Handling
 
-- **Runtime exceptions** from the invoked method are unwrapped and rethrown as-is.
-- **Checked exceptions** and reflection failures are wrapped in `MethodInvocationException` (unchecked).
+All Methodical exceptions extend `MethodicalException` (abstract, unchecked):
+
+- **`ParameterResolutionException`** — a resolver failed to deserialize a parameter (e.g., invalid JSON). Catch this to distinguish bad input from other failures.
+- **`MethodInvocationException`** — reflection failure (private method, inaccessible) or checked exception from the invoked method.
+- **Runtime exceptions** from the invoked method are unwrapped and rethrown as-is — not wrapped.
+
+```java
+try {
+    Object result = invoker.invoke(params);
+} catch (ParameterResolutionException e) {
+    // Bad input — parameter couldn't be deserialized
+} catch (MethodicalException e) {
+    // Reflection failure or checked exception
+}
+// RuntimeExceptions from the method propagate directly
+```
 
 ## Requirements
 
