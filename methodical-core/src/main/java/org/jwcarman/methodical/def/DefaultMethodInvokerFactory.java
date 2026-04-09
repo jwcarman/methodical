@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jwcarman.methodical;
+package org.jwcarman.methodical.def;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -21,6 +21,10 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.lang3.reflect.TypeUtils;
+import org.jwcarman.methodical.MethodInvoker;
+import org.jwcarman.methodical.MethodInvokerFactory;
+import org.jwcarman.methodical.param.ParameterInfo;
+import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.methodical.reflect.Types;
 
 /** Default implementation of {@link MethodInvokerFactory}. */

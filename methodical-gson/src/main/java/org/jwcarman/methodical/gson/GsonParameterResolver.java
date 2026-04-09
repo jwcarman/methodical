@@ -18,8 +18,8 @@ package org.jwcarman.methodical.gson;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import org.jwcarman.methodical.ParameterInfo;
-import org.jwcarman.methodical.ParameterResolver;
+import org.jwcarman.methodical.param.ParameterInfo;
+import org.jwcarman.methodical.param.ParameterResolver;
 
 public class GsonParameterResolver implements ParameterResolver<JsonElement> {
 

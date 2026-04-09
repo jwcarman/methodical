@@ -16,8 +16,8 @@
 package org.jwcarman.methodical.jackson3;
 
 import org.jwcarman.methodical.MethodInvocationException;
-import org.jwcarman.methodical.ParameterInfo;
-import org.jwcarman.methodical.ParameterResolver;
+import org.jwcarman.methodical.param.ParameterInfo;
+import org.jwcarman.methodical.param.ParameterResolver;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;

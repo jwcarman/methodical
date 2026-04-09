@@ -16,9 +16,9 @@
 package org.jwcarman.methodical.autoconfigure;
 
 import java.util.List;
-import org.jwcarman.methodical.DefaultMethodInvokerFactory;
 import org.jwcarman.methodical.MethodInvokerFactory;
-import org.jwcarman.methodical.ParameterResolver;
+import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
+import org.jwcarman.methodical.param.ParameterResolver;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;

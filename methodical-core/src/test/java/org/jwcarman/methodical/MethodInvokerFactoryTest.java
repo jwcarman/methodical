@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
+import org.jwcarman.methodical.param.ParameterInfo;
+import org.jwcarman.methodical.param.ParameterResolver;
 
 class MethodInvokerFactoryTest {
 

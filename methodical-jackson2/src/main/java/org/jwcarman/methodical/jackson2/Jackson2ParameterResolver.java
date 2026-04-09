@@ -19,8 +19,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import org.jwcarman.methodical.MethodInvocationException;
-import org.jwcarman.methodical.ParameterInfo;
-import org.jwcarman.methodical.ParameterResolver;
+import org.jwcarman.methodical.param.ParameterInfo;
+import org.jwcarman.methodical.param.ParameterResolver;
 
 public class Jackson2ParameterResolver implements ParameterResolver<JsonNode> {
 

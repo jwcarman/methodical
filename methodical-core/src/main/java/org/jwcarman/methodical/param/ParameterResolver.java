@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jwcarman.methodical;
+package org.jwcarman.methodical.param;
 
 public interface ParameterResolver<A> {
   boolean supports(ParameterInfo info);
