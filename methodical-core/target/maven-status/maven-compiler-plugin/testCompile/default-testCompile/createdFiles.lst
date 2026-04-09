@@ -1,0 +1,8 @@
+org/jwcarman/methodical/MethodInvokerFactoryTest$StringResolver.class
+org/jwcarman/methodical/MethodInvokerFactoryTest$AlternateStringResolver.class
+org/jwcarman/methodical/MethodInvokerFactoryTest$NonSupportingResolver.class
+org/jwcarman/methodical/MethodInvokerFactoryTest$PrivateTarget.class
+org/jwcarman/methodical/MethodInvokerFactoryTest$ConcreteService.class
+org/jwcarman/methodical/MethodInvokerFactoryTest$Target.class
+org/jwcarman/methodical/MethodInvokerFactoryTest$AbstractService.class
+org/jwcarman/methodical/MethodInvokerFactoryTest.class

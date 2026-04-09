@@ -1,0 +1,7 @@
+OpUOafPnT0T8DuytJ23d+2+QIXbJx0zPUCPQnwS8o5A=
+src/main/java/org/jwcarman/methodical/autoconfigure/GsonAutoConfiguration.java 2026-04-09T13:44:46.706224620Z
+src/main/java/org/jwcarman/methodical/autoconfigure/Jackson2AutoConfiguration.java 2026-04-09T13:44:46.705522863Z
+src/main/java/org/jwcarman/methodical/autoconfigure/Jackson3AutoConfiguration.java 2026-04-09T13:44:46.706010785Z
+src/main/java/org/jwcarman/methodical/autoconfigure/MethodicalAutoConfiguration.java 2026-04-09T13:45:12.605388018Z
+src/test/java/org/jwcarman/methodical/autoconfigure/Jackson3AutoConfigurationTest.java 2026-04-09T13:45:39.578732778Z
+src/test/java/org/jwcarman/methodical/autoconfigure/MethodicalAutoConfigurationTest.java 2026-04-09T13:46:30.556762961Z
