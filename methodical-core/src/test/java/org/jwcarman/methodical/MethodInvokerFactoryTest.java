@@ -158,7 +158,24 @@ class MethodInvokerFactoryTest {
     assertThat(result).isEqualTo("Hello, raw!");
   }
 
+  @Test
+  void shouldUseNamedAnnotationForParameterName() throws Exception {
+    var resolver = new StringResolver();
+    var factory = new DefaultMethodInvokerFactory(List.of(resolver));
+    Method method = NamedTarget.class.getMethod("greet", String.class);
+    var target = new NamedTarget();
+    MethodInvoker<String> invoker = factory.create(method, target, String.class);
+    Object result = invoker.invoke("test");
+    assertThat(result).isEqualTo("Hello, test!");
+  }
+
   // --- Test support classes ---
+
+  public static class NamedTarget {
+    public String greet(@Named("alias") String name) {
+      return "Hello, " + name + "!";
+    }
+  }
 
   public static class Target {
     public String greet(String name) {
@@ -169,11 +186,11 @@ class MethodInvokerFactoryTest {
       return "no args";
     }
 
-    public void voidMethod(String _arg) {
+    public void voidMethod(String arg) {
       // no-op
     }
 
-    public Void boxedVoidMethod(String _arg) {
+    public Void boxedVoidMethod(String arg) {
       return null;
     }
 

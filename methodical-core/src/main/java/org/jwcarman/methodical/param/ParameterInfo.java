@@ -17,6 +17,7 @@ package org.jwcarman.methodical.param;
 
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
+import java.util.Optional;
 import org.jwcarman.methodical.Named;
 
 /**
@@ -33,8 +34,10 @@ public record ParameterInfo(
 
   public static ParameterInfo of(
       Parameter parameter, int index, Class<?> resolvedType, Type genericType) {
-    Named named = parameter.getAnnotation(Named.class);
-    String name = named != null ? named.value() : parameter.getName();
+    String name =
+        Optional.ofNullable(parameter.getAnnotation(Named.class))
+            .map(Named::value)
+            .orElse(parameter.getName());
     return new ParameterInfo(parameter, index, name, resolvedType, genericType);
   }
 }
