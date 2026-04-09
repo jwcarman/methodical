@@ -20,7 +20,6 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.commons.lang3.reflect.TypeUtils;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodInvokerFactory;
 import org.jwcarman.methodical.param.ParameterInfo;
@@ -46,11 +45,8 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
     List<ParameterResolver<? super A>> assigned = new ArrayList<>(parameters.length);
 
     for (int i = 0; i < parameters.length; i++) {
+      Class<?> resolvedType = Types.resolveParameterType(parameters[i], target.getClass());
       Type genericType = parameters[i].getParameterizedType();
-      Class<?> resolvedType =
-          TypeUtils.getRawType(genericType, target.getClass()) != null
-              ? TypeUtils.getRawType(genericType, target.getClass())
-              : parameters[i].getType();
       paramInfos[i] = ParameterInfo.of(parameters[i], i, resolvedType, genericType);
       assigned.add(findResolver(argumentType, paramInfos[i]));
     }

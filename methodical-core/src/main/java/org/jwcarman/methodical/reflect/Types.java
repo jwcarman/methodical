@@ -15,6 +15,7 @@
  */
 package org.jwcarman.methodical.reflect;
 
+import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.util.Map;
@@ -24,6 +25,21 @@ import org.apache.commons.lang3.reflect.TypeUtils;
 public final class Types {
 
   private Types() {}
+
+  /**
+   * Resolves the raw type of a method parameter, accounting for generic type variables bound in a
+   * concrete subclass. Falls back to the parameter's declared type if the generic type cannot be
+   * resolved.
+   *
+   * @param parameter the method parameter
+   * @param targetClass the concrete class that owns the method
+   * @return the resolved raw type
+   */
+  public static Class<?> resolveParameterType(Parameter parameter, Class<?> targetClass) {
+    Type genericType = parameter.getParameterizedType();
+    Class<?> resolved = TypeUtils.getRawType(genericType, targetClass);
+    return resolved != null ? resolved : parameter.getType();
+  }
 
   /**
    * Resolves the concrete type argument at the given index from a concrete class that extends or
