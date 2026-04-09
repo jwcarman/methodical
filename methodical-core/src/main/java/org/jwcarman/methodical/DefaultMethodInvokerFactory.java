@@ -58,30 +58,29 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   private <A> ParameterResolver<? super A> findResolver(
       Class<A> argumentType, ParameterInfo paramInfo) {
     for (ResolvedParameterResolver<?> resolver : resolvers) {
-      if (resolver.argumentType.isAssignableFrom(argumentType) && resolver.supports(paramInfo)) {
-        return (ParameterResolver<? super A>) resolver.resolver;
+      if (resolver.argumentType().isAssignableFrom(argumentType) && resolver.supports(paramInfo)) {
+        return (ParameterResolver<? super A>) resolver.resolver();
       }
     }
     return null;
   }
 
-  @SuppressWarnings("unchecked")
-  private static <A> ResolvedParameterResolver<A> wrap(ParameterResolver<?> resolver) {
-    Class<A> type = (Class<A>) resolveArgumentType(resolver);
-    return new ResolvedParameterResolver<>((ParameterResolver<A>) resolver, type);
+  private static <A> ResolvedParameterResolver<A> wrap(ParameterResolver<A> resolver) {
+    return new ResolvedParameterResolver<>(resolver, resolveArgumentType(resolver));
   }
 
-  private static Class<?> resolveArgumentType(ParameterResolver<?> resolver) {
+  @SuppressWarnings("unchecked")
+  private static <A> Class<A> resolveArgumentType(ParameterResolver<A> resolver) {
     Map<java.lang.reflect.TypeVariable<?>, Type> typeArgs =
         TypeUtils.getTypeArguments(resolver.getClass(), ParameterResolver.class);
     if (typeArgs != null && !typeArgs.isEmpty()) {
       Type argType = typeArgs.values().iterator().next();
       Class<?> raw = TypeUtils.getRawType(argType, null);
       if (raw != null) {
-        return raw;
+        return (Class<A>) raw;
       }
     }
-    return Object.class;
+    return (Class<A>) (Class<?>) Object.class;
   }
 
   private record ResolvedParameterResolver<A>(
