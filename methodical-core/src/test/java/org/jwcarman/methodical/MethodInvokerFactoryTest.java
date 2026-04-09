@@ -159,6 +159,29 @@ class MethodInvokerFactoryTest {
   }
 
   @Test
+  void shouldPropagateParameterResolutionException() throws Exception {
+    ParameterResolver<String> failingResolver =
+        new ParameterResolver<>() {
+          @Override
+          public boolean supports(ParameterInfo info) {
+            return true;
+          }
+
+          @Override
+          public Object resolve(ParameterInfo info, String argument) {
+            throw new ParameterResolutionException("bad param", new RuntimeException("cause"));
+          }
+        };
+    var factory = new DefaultMethodInvokerFactory(List.of(failingResolver));
+    Method method = Target.class.getMethod("greet", String.class);
+    var target = new Target();
+    MethodInvoker<String> invoker = factory.create(method, target, String.class);
+    assertThatThrownBy(() -> invoker.invoke("test"))
+        .isInstanceOf(ParameterResolutionException.class)
+        .hasMessage("bad param");
+  }
+
+  @Test
   void shouldUseNamedAnnotationForParameterName() throws Exception {
     var resolver = new StringResolver();
     var factory = new DefaultMethodInvokerFactory(List.of(resolver));
