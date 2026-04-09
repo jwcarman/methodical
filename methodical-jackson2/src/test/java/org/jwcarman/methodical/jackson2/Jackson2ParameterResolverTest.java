@@ -16,13 +16,19 @@
 package org.jwcarman.methodical.jackson2;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.jwcarman.methodical.MethodInvocationException;
 import org.jwcarman.methodical.ParameterInfo;
 
 class Jackson2ParameterResolverTest {
@@ -52,33 +58,21 @@ class Jackson2ParameterResolverTest {
     assertThat(result).isEqualTo("Alice");
   }
 
-  @Test
-  void shouldReturnNullForNullParams() throws Exception {
-    ParameterInfo info = paramInfo("name", 0, String.class);
-    Object result = resolver.resolve(info, null);
-    assertThat(result).isNull();
+  static Stream<Arguments> nullCases() throws Exception {
+    ObjectMapper m = new ObjectMapper();
+    return Stream.of(
+        Arguments.of("null params", null, "name", 0),
+        Arguments.of("missing key", m.readTree("{\"other\": \"value\"}"), "name", 0),
+        Arguments.of("null node value", m.readTree("{\"name\": null}"), "name", 0),
+        Arguments.of("array out of bounds", m.readTree("[\"Alice\"]"), "name", 5),
+        Arguments.of("JsonNull params", m.readTree("null"), "name", 0));
   }
 
-  @Test
-  void shouldReturnNullForMissingKey() throws Exception {
-    ParameterInfo info = paramInfo("name", 0, String.class);
-    JsonNode params = mapper.readTree("{\"other\": \"value\"}");
-    Object result = resolver.resolve(info, params);
-    assertThat(result).isNull();
-  }
-
-  @Test
-  void shouldReturnNullForNullNodeValue() throws Exception {
-    ParameterInfo info = paramInfo("name", 0, String.class);
-    JsonNode params = mapper.readTree("{\"name\": null}");
-    Object result = resolver.resolve(info, params);
-    assertThat(result).isNull();
-  }
-
-  @Test
-  void shouldReturnNullForArrayOutOfBounds() throws Exception {
-    ParameterInfo info = paramInfo("name", 5, String.class);
-    JsonNode params = mapper.readTree("[\"Alice\"]");
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("nullCases")
+  void shouldReturnNullWhenExpected(
+      String description, JsonNode params, String paramName, int index) throws Exception {
+    ParameterInfo info = paramInfo(paramName, index, String.class);
     Object result = resolver.resolve(info, params);
     assertThat(result).isNull();
   }
@@ -98,11 +92,20 @@ class Jackson2ParameterResolverTest {
   }
 
   @Test
-  void shouldReturnNullForJsonNullParams() throws Exception {
+  void shouldReturnNullForScalarParams() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
-    JsonNode params = mapper.readTree("null");
+    JsonNode params = mapper.readTree("\"just a string\"");
     Object result = resolver.resolve(info, params);
     assertThat(result).isNull();
+  }
+
+  @Test
+  void shouldThrowMethodInvocationExceptionOnDeserializationError() throws Exception {
+    ParameterInfo info = paramInfo("value", 0, int.class);
+    JsonNode params = mapper.readTree("{\"value\": \"not a number\"}");
+    assertThatThrownBy(() -> resolver.resolve(info, params))
+        .isInstanceOf(MethodInvocationException.class)
+        .hasMessageContaining("Unable to deserialize parameter");
   }
 
   private ParameterInfo paramInfo(String paramName, int index, Class<?> type) throws Exception {
@@ -113,6 +116,8 @@ class Jackson2ParameterResolverTest {
   }
 
   public static class TestTarget {
-    public void method(String name, int value) {}
+    public void method(String name, int value) {
+      // no-op
+    }
   }
 }

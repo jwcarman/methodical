@@ -26,10 +26,13 @@ import org.apache.commons.lang3.reflect.TypeUtils;
 /** Default implementation of {@link MethodInvokerFactory}. */
 public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
 
-  private final List<ResolvedParameterResolver> resolvers;
+  private final List<ResolvedParameterResolver<?>> resolvers;
 
   public DefaultMethodInvokerFactory(List<ParameterResolver<?>> resolvers) {
-    this.resolvers = resolvers.stream().map(ResolvedParameterResolver::new).toList();
+    this.resolvers =
+        resolvers.stream()
+            .<ResolvedParameterResolver<?>>map(DefaultMethodInvokerFactory::wrap)
+            .toList();
   }
 
   @Override
@@ -54,46 +57,37 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   @SuppressWarnings("unchecked")
   private <A> ParameterResolver<? super A> findResolver(
       Class<A> argumentType, ParameterInfo paramInfo) {
-    for (ResolvedParameterResolver resolver : resolvers) {
-      if (resolver.argumentType().isAssignableFrom(argumentType) && resolver.supports(paramInfo)) {
-        return (ParameterResolver<? super A>) resolver.delegate();
+    for (ResolvedParameterResolver<?> resolver : resolvers) {
+      if (resolver.argumentType.isAssignableFrom(argumentType) && resolver.supports(paramInfo)) {
+        return (ParameterResolver<? super A>) resolver.resolver;
       }
     }
     return null;
   }
 
-  private static class ResolvedParameterResolver {
-    private final ParameterResolver<?> resolver;
-    private final Class<?> argumentType;
+  @SuppressWarnings("unchecked")
+  private static <A> ResolvedParameterResolver<A> wrap(ParameterResolver<?> resolver) {
+    Class<A> type = (Class<A>) resolveArgumentType(resolver);
+    return new ResolvedParameterResolver<>((ParameterResolver<A>) resolver, type);
+  }
 
-    ResolvedParameterResolver(ParameterResolver<?> resolver) {
-      this.resolver = resolver;
-      this.argumentType = resolveArgumentType(resolver);
+  private static Class<?> resolveArgumentType(ParameterResolver<?> resolver) {
+    Map<java.lang.reflect.TypeVariable<?>, Type> typeArgs =
+        TypeUtils.getTypeArguments(resolver.getClass(), ParameterResolver.class);
+    if (typeArgs != null && !typeArgs.isEmpty()) {
+      Type argType = typeArgs.values().iterator().next();
+      Class<?> raw = TypeUtils.getRawType(argType, null);
+      if (raw != null) {
+        return raw;
+      }
     }
+    return Object.class;
+  }
 
-    ParameterResolver<?> delegate() {
-      return resolver;
-    }
-
-    Class<?> argumentType() {
-      return argumentType;
-    }
-
+  private record ResolvedParameterResolver<A>(
+      ParameterResolver<A> resolver, Class<A> argumentType) {
     boolean supports(ParameterInfo info) {
       return resolver.supports(info);
-    }
-
-    private static Class<?> resolveArgumentType(ParameterResolver<?> resolver) {
-      Map<java.lang.reflect.TypeVariable<?>, Type> typeArgs =
-          TypeUtils.getTypeArguments(resolver.getClass(), ParameterResolver.class);
-      if (typeArgs != null && !typeArgs.isEmpty()) {
-        Type argType = typeArgs.values().iterator().next();
-        Class<?> raw = TypeUtils.getRawType(argType, null);
-        if (raw != null) {
-          return raw;
-        }
-      }
-      return Object.class;
     }
   }
 }

@@ -144,6 +144,17 @@ class MethodInvokerFactoryTest {
     assertThat(result).isEqualTo("processed: test");
   }
 
+  @Test
+  void shouldHandleRawParameterResolver() throws Exception {
+    var resolver = new WildcardResolver();
+    var factory = new DefaultMethodInvokerFactory(List.of(resolver));
+    Method method = Target.class.getMethod("greet", String.class);
+    var target = new Target();
+    MethodInvoker<String> invoker = factory.create(method, target, String.class);
+    Object result = invoker.invoke("world");
+    assertThat(result).isEqualTo("Hello, raw!");
+  }
+
   // --- Test support classes ---
 
   public static class Target {
@@ -155,11 +166,11 @@ class MethodInvokerFactoryTest {
       return "no args";
     }
 
-    public void voidMethod(String arg) {
-      // do nothing
+    public void voidMethod(String _arg) {
+      // no-op
     }
 
-    public Void boxedVoidMethod(String arg) {
+    public Void boxedVoidMethod(String _arg) {
       return null;
     }
 
@@ -222,6 +233,18 @@ class MethodInvokerFactoryTest {
     @Override
     public Object resolve(ParameterInfo info, String argument) {
       return "should not be called";
+    }
+  }
+
+  static class WildcardResolver implements ParameterResolver<Object> {
+    @Override
+    public boolean supports(ParameterInfo info) {
+      return true;
+    }
+
+    @Override
+    public Object resolve(ParameterInfo info, Object argument) {
+      return "raw";
     }
   }
 }

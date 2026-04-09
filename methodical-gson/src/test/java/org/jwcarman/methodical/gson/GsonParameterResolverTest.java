@@ -23,8 +23,12 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonParser;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.jwcarman.methodical.ParameterInfo;
 
 class GsonParameterResolverTest {
@@ -54,33 +58,20 @@ class GsonParameterResolverTest {
     assertThat(result).isEqualTo("Alice");
   }
 
-  @Test
-  void shouldReturnNullForNullParams() throws Exception {
-    ParameterInfo info = paramInfo("name", 0, String.class);
-    Object result = resolver.resolve(info, null);
-    assertThat(result).isNull();
+  static Stream<Arguments> nullCases() throws Exception {
+    return Stream.of(
+        Arguments.of("null params", null, "name", 0),
+        Arguments.of("missing key", JsonParser.parseString("{\"other\": \"value\"}"), "name", 0),
+        Arguments.of("null node value", JsonParser.parseString("{\"name\": null}"), "name", 0),
+        Arguments.of("array out of bounds", JsonParser.parseString("[\"Alice\"]"), "name", 5),
+        Arguments.of("JsonNull params", JsonNull.INSTANCE, "name", 0));
   }
 
-  @Test
-  void shouldReturnNullForMissingKey() throws Exception {
-    ParameterInfo info = paramInfo("name", 0, String.class);
-    JsonElement params = JsonParser.parseString("{\"other\": \"value\"}");
-    Object result = resolver.resolve(info, params);
-    assertThat(result).isNull();
-  }
-
-  @Test
-  void shouldReturnNullForNullNodeValue() throws Exception {
-    ParameterInfo info = paramInfo("name", 0, String.class);
-    JsonElement params = JsonParser.parseString("{\"name\": null}");
-    Object result = resolver.resolve(info, params);
-    assertThat(result).isNull();
-  }
-
-  @Test
-  void shouldReturnNullForArrayOutOfBounds() throws Exception {
-    ParameterInfo info = paramInfo("name", 5, String.class);
-    JsonElement params = JsonParser.parseString("[\"Alice\"]");
+  @ParameterizedTest(name = "{0}")
+  @MethodSource("nullCases")
+  void shouldReturnNullWhenExpected(
+      String description, JsonElement params, String paramName, int index) throws Exception {
+    ParameterInfo info = paramInfo(paramName, index, String.class);
     Object result = resolver.resolve(info, params);
     assertThat(result).isNull();
   }
@@ -100,9 +91,10 @@ class GsonParameterResolverTest {
   }
 
   @Test
-  void shouldReturnNullForJsonNullParams() throws Exception {
+  void shouldReturnNullForScalarParams() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
-    Object result = resolver.resolve(info, JsonNull.INSTANCE);
+    JsonElement params = JsonParser.parseString("\"just a string\"");
+    Object result = resolver.resolve(info, params);
     assertThat(result).isNull();
   }
 
@@ -114,6 +106,8 @@ class GsonParameterResolverTest {
   }
 
   public static class TestTarget {
-    public void method(String name, int value) {}
+    public void method(String name, int value) {
+      // no-op
+    }
   }
 }
