@@ -35,8 +35,7 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   public <A> MethodInvoker<A> create(Method method, Object target, Class<A> argumentType) {
     Parameter[] parameters = method.getParameters();
     ParameterInfo[] paramInfos = new ParameterInfo[parameters.length];
-    DefaultMethodInvoker.ParameterResolverAssignment[] assignments =
-        new DefaultMethodInvoker.ParameterResolverAssignment[parameters.length];
+    ParameterResolver<?>[] assigned = new ParameterResolver<?>[parameters.length];
 
     for (int i = 0; i < parameters.length; i++) {
       Type genericType = parameters[i].getParameterizedType();
@@ -49,14 +48,13 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
       for (ResolvedParameterResolver resolver : resolvers) {
         if (resolver.argumentType().isAssignableFrom(argumentType)
             && resolver.supports(paramInfos[i])) {
-          assignments[i] =
-              new DefaultMethodInvoker.ParameterResolverAssignment(resolver.delegate());
+          assigned[i] = resolver.delegate();
           break;
         }
       }
     }
 
-    return new DefaultMethodInvoker<>(method, target, paramInfos, assignments);
+    return new DefaultMethodInvoker<>(method, target, paramInfos, assigned);
   }
 
   private static class ResolvedParameterResolver {

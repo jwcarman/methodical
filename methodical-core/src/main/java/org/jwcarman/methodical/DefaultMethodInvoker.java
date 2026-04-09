@@ -27,18 +27,15 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   private final Method method;
   private final Object target;
   private final ParameterInfo[] paramInfos;
-  private final ParameterResolverAssignment[] assignments;
+  private final ParameterResolver<?>[] resolvers;
   private final boolean isVoid;
 
   DefaultMethodInvoker(
-      Method method,
-      Object target,
-      ParameterInfo[] paramInfos,
-      ParameterResolverAssignment[] assignments) {
+      Method method, Object target, ParameterInfo[] paramInfos, ParameterResolver<?>[] resolvers) {
     this.method = method;
     this.target = target;
     this.paramInfos = paramInfos;
-    this.assignments = assignments;
+    this.resolvers = resolvers;
     this.isVoid = method.getReturnType() == void.class || method.getReturnType() == Void.class;
   }
 
@@ -59,21 +56,14 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     }
   }
 
+  @SuppressWarnings("unchecked")
   private Object[] resolveArguments(A argument) {
     Object[] args = new Object[paramInfos.length];
     for (int i = 0; i < paramInfos.length; i++) {
-      if (assignments[i] != null) {
-        args[i] = assignments[i].resolve(paramInfos[i], argument);
+      if (resolvers[i] != null) {
+        args[i] = ((ParameterResolver<Object>) resolvers[i]).resolve(paramInfos[i], argument);
       }
     }
     return args;
-  }
-
-  /** Pairs a resolver with its ability to resolve against any argument type (type-erased). */
-  record ParameterResolverAssignment(ParameterResolver<?> resolver) {
-    @SuppressWarnings("unchecked")
-    Object resolve(ParameterInfo info, Object argument) {
-      return ((ParameterResolver<Object>) resolver).resolve(info, argument);
-    }
   }
 }
