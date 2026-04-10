@@ -182,6 +182,28 @@ class MethodInvokerFactoryTest {
   }
 
   @Test
+  void shouldPassRawArgumentWhenAnnotatedWithArgument() throws Exception {
+    var resolver = new StringResolver();
+    var factory = new DefaultMethodInvokerFactory(List.of(resolver));
+    Method method = ArgumentTarget.class.getMethod("process", String.class);
+    var target = new ArgumentTarget();
+    MethodInvoker<String> invoker = factory.create(method, target, String.class);
+    Object result = invoker.invoke("raw-value");
+    assertThat(result).isEqualTo("got: raw-value");
+  }
+
+  @Test
+  void argumentAnnotationBypassesResolvers() throws Exception {
+    var resolver = new NonSupportingResolver();
+    var factory = new DefaultMethodInvokerFactory(List.of(resolver));
+    Method method = ArgumentTarget.class.getMethod("process", String.class);
+    var target = new ArgumentTarget();
+    MethodInvoker<String> invoker = factory.create(method, target, String.class);
+    Object result = invoker.invoke("raw-value");
+    assertThat(result).isEqualTo("got: raw-value");
+  }
+
+  @Test
   void shouldUseNamedAnnotationForParameterName() throws Exception {
     var resolver = new StringResolver();
     var factory = new DefaultMethodInvokerFactory(List.of(resolver));
@@ -193,6 +215,12 @@ class MethodInvokerFactoryTest {
   }
 
   // --- Test support classes ---
+
+  public static class ArgumentTarget {
+    public String process(@Argument String raw) {
+      return "got: " + raw;
+    }
+  }
 
   public static class NamedTarget {
     public String greet(@Named("alias") String name) {

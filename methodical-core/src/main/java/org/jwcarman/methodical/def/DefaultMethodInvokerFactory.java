@@ -20,6 +20,7 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodInvokerFactory;
 import org.jwcarman.methodical.param.ParameterInfo;
@@ -57,6 +58,20 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   @SuppressWarnings("unchecked")
   private <A> ParameterResolver<? super A> findResolver(
       Class<A> argumentType, ParameterInfo paramInfo) {
+    if (paramInfo.parameter().isAnnotationPresent(Argument.class)
+        && paramInfo.resolvedType().isAssignableFrom(argumentType)) {
+      return new ParameterResolver<>() {
+        @Override
+        public boolean supports(ParameterInfo info) {
+          return true;
+        }
+
+        @Override
+        public Object resolve(ParameterInfo info, A argument) {
+          return argument;
+        }
+      };
+    }
     return (ParameterResolver<? super A>)
         resolvers.stream()
             .filter(r -> r.argumentType().isAssignableFrom(argumentType))
