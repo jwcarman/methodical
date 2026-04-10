@@ -204,6 +204,18 @@ class MethodInvokerFactoryTest {
   }
 
   @Test
+  void argumentAnnotationThrowsWhenTypeIncompatible() throws Exception {
+    var factory = new DefaultMethodInvokerFactory(List.of());
+    Method method = IncompatibleArgumentTarget.class.getMethod("process", Integer.class);
+    var target = new IncompatibleArgumentTarget();
+    assertThatThrownBy(() -> factory.create(method, target, String.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("@Argument")
+        .hasMessageContaining("Integer")
+        .hasMessageContaining("String");
+  }
+
+  @Test
   void shouldUseNamedAnnotationForParameterName() throws Exception {
     var resolver = new StringResolver();
     var factory = new DefaultMethodInvokerFactory(List.of(resolver));
@@ -219,6 +231,12 @@ class MethodInvokerFactoryTest {
   public static class ArgumentTarget {
     public String process(@Argument String raw) {
       return "got: " + raw;
+    }
+  }
+
+  public static class IncompatibleArgumentTarget {
+    public String process(@Argument Integer value) {
+      return "got: " + value;
     }
   }
 

@@ -58,8 +58,13 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   @SuppressWarnings("unchecked")
   private <A> ParameterResolver<? super A> findResolver(
       Class<A> argumentType, ParameterInfo paramInfo) {
-    if (paramInfo.parameter().isAnnotationPresent(Argument.class)
-        && paramInfo.resolvedType().isAssignableFrom(argumentType)) {
+    if (paramInfo.parameter().isAnnotationPresent(Argument.class)) {
+      if (!paramInfo.resolvedType().isAssignableFrom(argumentType)) {
+        throw new IllegalArgumentException(
+            String.format(
+                "@Argument parameter \"%s\" has type %s which is not assignable from argument type %s",
+                paramInfo.name(), paramInfo.resolvedType().getName(), argumentType.getName()));
+      }
       return new ParameterResolver<>() {
         @Override
         public boolean supports(ParameterInfo info) {
