@@ -40,6 +40,8 @@ Object result = invoker.invoke(params);  // "Hello, World!"
 
 3. **`MethodInvoker<A>`** — A lightweight, reusable handle that resolves arguments and invokes the method.
 
+Generic types are carried at runtime via [specular](https://github.com/jwcarman/specular)'s `TypeRef<T>` — a small super-type-token helper that methodical depends on for parameter type resolution and generic-aware assignability.
+
 ## Generic Argument Types
 
 When the argument type is parameterized (e.g. `Map<String, Object>` for MCP-style tool calls), use a `TypeRef` so the factory can match resolvers generically:
@@ -183,4 +185,9 @@ try {
 ## Requirements
 
 - Java 25+
+- [specular](https://github.com/jwcarman/specular) (transitive, for `TypeRef` and generic type helpers)
 - Spring Boot 4.x (for autoconfigure/starter) or standalone with any Java version
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
