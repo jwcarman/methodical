@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-14
+
 ### Breaking changes
 
 - **`ParameterInfo` record signature changed** from `(Parameter, int, String name, Class<?> resolvedType, Type genericType)` to `(Parameter, int, String name, TypeRef<?> type)`. The `resolvedType()` and `genericType()` accessors are preserved as derived methods, but destructuring patterns or direct component-order calls will break.
@@ -84,7 +86,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/jwcarman/methodical/releases/tag/0.4.0
 [0.3.0]: https://github.com/jwcarman/methodical/releases/tag/0.3.0
 [0.2.1]: https://github.com/jwcarman/methodical/releases/tag/0.2.1
 [0.2.0]: https://github.com/jwcarman/methodical/releases/tag/0.2.0
