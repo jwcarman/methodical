@@ -62,6 +62,7 @@
 
     <properties>
         <java.version>25</java.version>
+        <specular.version>0.3.0</specular.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spotless.version>3.4.0</spotless.version>
         <jacocoArgLine></jacocoArgLine>
@@ -86,6 +87,11 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.jwcarman</groupId>
+                <artifactId>specular</artifactId>
+                <version>${specular.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.jwcarman.methodical</groupId>
                 <artifactId>methodical-core</artifactId>

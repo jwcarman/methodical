@@ -40,6 +40,37 @@ Object result = invoker.invoke(params);  // "Hello, World!"
 
 3. **`MethodInvoker<A>`** — A lightweight, reusable handle that resolves arguments and invokes the method.
 
+## Generic Argument Types
+
+When the argument type is parameterized (e.g. `Map<String, Object>` for MCP-style tool calls), use a `TypeRef` so the factory can match resolvers generically:
+
+```java
+MethodInvoker<Map<String, Object>> invoker =
+    factory.create(method, target, new TypeRef<Map<String, Object>>() {});
+```
+
+Methodical checks assignability with Java's normal generic rules — `Map<String, String>` is *not* assignable to `Map<String, Object>` (invariance), but `HashMap<String, String>` *is* assignable to `Map<String, String>`.
+
+## @Argument Pass-Through
+
+To receive the raw argument without any resolver, annotate the parameter with `@Argument`:
+
+```java
+public String process(@Argument Map<String, Object> raw) { ... }
+```
+
+The factory validates at `create(...)` time that the parameter type is assignable from the argument type, throwing `ParameterResolutionException` if not. Generic-aware: `@Argument Map<String, String>` will reject an argument type of `Map<String, Object>`.
+
+## Per-Invoker Resolvers
+
+Register resolvers for a single invoker without mutating the factory. These are tried *before* factory-level resolvers:
+
+```java
+MethodInvoker<Request> invoker = factory.create(
+    method, target, TypeRef.of(Request.class),
+    List.of(new SessionResolver(), new AuthResolver()));
+```
+
 ## Parameter Name Override
 
 Use `@Named` to override the parameter name used for resolution:
@@ -98,20 +129,35 @@ Auto-configuration detects which JSON library is on the classpath and registers 
 
 ## Writing a Custom Resolver
 
+A resolver is a two-method SPI: `supports(ParameterInfo)` decides whether it handles a given parameter, and `resolve(ParameterInfo, A)` produces the value.
+
 ```java
-public class MyContextResolver implements ParameterResolver<JsonNode> {
+public class HeaderResolver implements ParameterResolver<HttpRequest> {
 
     @Override
     public boolean supports(ParameterInfo info) {
-        return MyContext.class.isAssignableFrom(info.resolvedType());
+        return info.hasAnnotation(Header.class) && info.accepts(String.class);
     }
 
     @Override
-    public Object resolve(ParameterInfo info, JsonNode params) {
-        return MyContext.current();  // however you obtain it
+    public Object resolve(ParameterInfo info, HttpRequest req) {
+        String name = info.annotation(Header.class).orElseThrow().value();
+        return req.getHeader(name);
     }
 }
 ```
+
+Key `ParameterInfo` helpers:
+
+- `accepts(Class<?>)` / `accepts(TypeRef<?>)` / `accepts(Type)` — generic-aware assignability check against the parameter's declared type.
+- `hasAnnotation(Class<? extends Annotation>)` — quick check.
+- `annotation(Class<T>)` — returns `Optional<T>`.
+- `name()` — resolved name (honors `@Named`).
+- `index()` — positional index.
+
+**Dispatch order:** per-invoker resolvers → factory-level resolvers. Within each group, the first resolver whose `supports()` returns `true` wins. The type parameter on `ParameterResolver<A>` is the *argument* type (what's passed to `MethodInvoker.invoke(A)`), and the factory matches resolvers against the invoker's `TypeRef<A>` — so a `ParameterResolver<Map<String,String>>` only matches invokers whose argument type is assignable to `Map<String,String>`.
+
+**Fail-fast:** if no resolver matches a parameter, the factory throws `ParameterResolutionException` at `create(...)` time with a message listing what was tried. No silent nulls at invoke time.
 
 Register as a Spring bean — it's automatically picked up by the factory. Use `@Order` to control priority (lower values = higher priority). JSON resolvers run at `Ordered.LOWEST_PRECEDENCE` as the fallback.
 
@@ -119,7 +165,7 @@ Register as a Spring bean — it's automatically picked up by the factory. Use `
 
 All Methodical exceptions extend `MethodicalException` (abstract, unchecked):
 
-- **`ParameterResolutionException`** — a resolver failed to deserialize a parameter (e.g., invalid JSON). Catch this to distinguish bad input from other failures.
+- **`ParameterResolutionException`** — a resolver failed to deserialize a parameter (e.g., invalid JSON), *or* the factory couldn't find a resolver for a parameter at `create(...)` time. Catch this to distinguish bad input / misconfiguration from other failures.
 - **`MethodInvocationException`** — reflection failure (private method, inaccessible) or checked exception from the invoked method.
 - **Runtime exceptions** from the invoked method are unwrapped and rethrown as-is — not wrapped.
 

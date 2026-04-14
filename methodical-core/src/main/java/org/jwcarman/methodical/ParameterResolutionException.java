@@ -17,6 +17,10 @@ package org.jwcarman.methodical;
 
 /** Thrown when a parameter resolver fails to resolve or deserialize a parameter value. */
 public class ParameterResolutionException extends MethodicalException {
+  public ParameterResolutionException(String message) {
+    super(message);
+  }
+
   public ParameterResolutionException(String message, Throwable cause) {
     super(message, cause);
   }

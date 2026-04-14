@@ -127,13 +127,16 @@ class MethodInvokerFactoryTest {
   }
 
   @Test
-  void shouldPassNullWhenNoResolverMatches() throws Exception {
+  void shouldFailFastWhenNoResolverMatches() throws Exception {
     var factory = new DefaultMethodInvokerFactory(List.of());
     Method method = Target.class.getMethod("greet", String.class);
     var target = new Target();
-    MethodInvoker<String> invoker = factory.create(method, target, String.class);
-    Object result = invoker.invoke("world");
-    assertThat(result).isEqualTo("Hello, null!");
+    assertThatThrownBy(() -> factory.create(method, target, String.class))
+        .isInstanceOf(ParameterResolutionException.class)
+        .hasMessageContaining("No resolver found")
+        .hasMessageContaining("name")
+        .hasMessageContaining("Target.greet")
+        .hasMessageContaining("@Argument");
   }
 
   @Test
@@ -209,7 +212,7 @@ class MethodInvokerFactoryTest {
     Method method = IncompatibleArgumentTarget.class.getMethod("process", Integer.class);
     var target = new IncompatibleArgumentTarget();
     assertThatThrownBy(() -> factory.create(method, target, String.class))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("@Argument")
         .hasMessageContaining("Integer")
         .hasMessageContaining("String");

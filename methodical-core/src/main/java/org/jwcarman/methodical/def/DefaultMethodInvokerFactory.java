@@ -17,15 +17,16 @@ package org.jwcarman.methodical.def;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodInvokerFactory;
+import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
-import org.jwcarman.methodical.reflect.Types;
+import org.jwcarman.specular.TypeRef;
 
 /** Default implementation of {@link MethodInvokerFactory}. */
 public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
@@ -40,43 +41,74 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   }
 
   @Override
-  public <A> MethodInvoker<A> create(Method method, Object target, Class<A> argumentType) {
+  public <A> MethodInvoker<A> create(
+      Method method,
+      Object target,
+      TypeRef<A> argumentType,
+      List<ParameterResolver<? super A>> extraResolvers) {
     Parameter[] parameters = method.getParameters();
     ParameterInfo[] paramInfos = new ParameterInfo[parameters.length];
     List<ParameterResolver<? super A>> assigned = new ArrayList<>(parameters.length);
 
     for (int i = 0; i < parameters.length; i++) {
-      Class<?> resolvedType = Types.resolveParameterType(parameters[i], target.getClass());
-      Type genericType = parameters[i].getParameterizedType();
-      paramInfos[i] = ParameterInfo.of(parameters[i], i, resolvedType, genericType);
-      assigned.add(findResolver(argumentType, paramInfos[i]));
+      TypeRef<?> type = TypeRef.parameterType(parameters[i], target.getClass());
+      paramInfos[i] = ParameterInfo.of(parameters[i], i, type);
+      assigned.add(findResolver(method, argumentType, extraResolvers, paramInfos[i]));
     }
 
     return new DefaultMethodInvoker<>(method, target, paramInfos, assigned);
   }
 
-  @SuppressWarnings("unchecked")
   private <A> ParameterResolver<? super A> findResolver(
-      Class<A> argumentType, ParameterInfo paramInfo) {
-    if (paramInfo.parameter().isAnnotationPresent(Argument.class)) {
-      if (!paramInfo.resolvedType().isAssignableFrom(argumentType)) {
-        throw new IllegalArgumentException(
+      Method method,
+      TypeRef<A> argumentType,
+      List<ParameterResolver<? super A>> extraResolvers,
+      ParameterInfo paramInfo) {
+    if (paramInfo.hasAnnotation(Argument.class)) {
+      if (!paramInfo.accepts(argumentType)) {
+        throw new ParameterResolutionException(
             String.format(
-                "@Argument parameter \"%s\" has type %s which is not assignable from argument type %s",
-                paramInfo.name(), paramInfo.resolvedType().getName(), argumentType.getName()));
+                "@Argument parameter \"%s\" (type %s) on %s is not assignable from argument type %s",
+                paramInfo.name(),
+                paramInfo.genericType().getTypeName(),
+                describe(method),
+                argumentType.getType().getTypeName()));
       }
-      return new ParameterResolver<>() {
-        @Override
-        public boolean supports(ParameterInfo info) {
-          return true;
-        }
-
-        @Override
-        public Object resolve(ParameterInfo info, A argument) {
-          return argument;
-        }
-      };
+      return new ArgumentParameterResolver<>(argumentType);
     }
+
+    ParameterResolver<? super A> extra =
+        extraResolvers.stream().filter(r -> r.supports(paramInfo)).findFirst().orElse(null);
+    if (extra != null) {
+      return extra;
+    }
+
+    ParameterResolver<? super A> factoryResolver = findFactoryResolver(argumentType, paramInfo);
+    if (factoryResolver != null) {
+      return factoryResolver;
+    }
+
+    throw new ParameterResolutionException(
+        String.format(
+            "No resolver found for parameter \"%s\" (type %s) on %s. "
+                + "Argument type: %s. Tried: extras=[%s], factory=[%s]. "
+                + "Hint: annotate with @Argument, add a matching ParameterResolver, "
+                + "or pass one via the per-invoker resolvers list.",
+            paramInfo.name(),
+            paramInfo.genericType().getTypeName(),
+            describe(method),
+            argumentType.getType().getTypeName(),
+            extraResolvers.stream()
+                .map(r -> r.getClass().getSimpleName())
+                .collect(Collectors.joining(", ")),
+            resolvers.stream()
+                .map(r -> r.resolver().getClass().getSimpleName())
+                .collect(Collectors.joining(", "))));
+  }
+
+  @SuppressWarnings("unchecked")
+  private <A> ParameterResolver<? super A> findFactoryResolver(
+      TypeRef<A> argumentType, ParameterInfo paramInfo) {
     return (ParameterResolver<? super A>)
         resolvers.stream()
             .filter(r -> r.argumentType().isAssignableFrom(argumentType))
@@ -86,12 +118,23 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
             .orElse(null);
   }
 
+  private static String describe(Method method) {
+    return method.getDeclaringClass().getSimpleName() + "." + method.getName();
+  }
+
   private static <A> ResolvedParameterResolver<A> wrap(ParameterResolver<A> resolver) {
-    Class<A> argumentType =
-        Types.typeParamFromClass(resolver.getClass(), ParameterResolver.class, 0);
+    TypeRef<?> argumentType =
+        TypeRef.of(resolver.getClass())
+            .typeArgument(ParameterResolver.class, 0)
+            .orElseThrow(
+                () ->
+                    new IllegalArgumentException(
+                        "Unable to determine argument type for ParameterResolver: "
+                            + resolver.getClass().getName()
+                            + ". Declare the type parameter on a concrete subclass."));
     return new ResolvedParameterResolver<>(resolver, argumentType);
   }
 
   private record ResolvedParameterResolver<A>(
-      ParameterResolver<A> resolver, Class<A> argumentType) {}
+      ParameterResolver<A> resolver, TypeRef<?> argumentType) {}
 }

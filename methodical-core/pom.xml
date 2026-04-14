@@ -34,8 +34,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
+            <groupId>org.jwcarman</groupId>
+            <artifactId>specular</artifactId>
         </dependency>
     </dependencies>
 </project>

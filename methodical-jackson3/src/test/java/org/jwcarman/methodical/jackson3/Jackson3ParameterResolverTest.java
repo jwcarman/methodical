@@ -28,6 +28,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
+import org.jwcarman.specular.TypeRef;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -112,7 +113,7 @@ class Jackson3ParameterResolverTest {
     Method method = TestTarget.class.getMethod("method", String.class, int.class);
     Parameter param =
         paramName.equals("name") ? method.getParameters()[0] : method.getParameters()[1];
-    return ParameterInfo.of(param, index, type, type);
+    return ParameterInfo.of(param, index, TypeRef.of(type));
   }
 
   public static class TestTarget {

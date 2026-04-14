@@ -17,6 +17,10 @@ package org.jwcarman.methodical;
 
 /** Base exception for all Methodical errors. */
 public abstract class MethodicalException extends RuntimeException {
+  protected MethodicalException(String message) {
+    super(message);
+  }
+
   protected MethodicalException(String message, Throwable cause) {
     super(message, cause);
   }

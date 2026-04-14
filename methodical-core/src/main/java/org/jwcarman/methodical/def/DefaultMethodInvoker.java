@@ -33,7 +33,6 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   private final Object target;
   private final ParameterInfo[] paramInfos;
   private final List<ParameterResolver<? super A>> resolvers;
-  private final boolean isVoid;
 
   DefaultMethodInvoker(
       Method method,
@@ -44,15 +43,13 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     this.target = target;
     this.paramInfos = paramInfos;
     this.resolvers = resolvers;
-    this.isVoid = method.getReturnType() == void.class || method.getReturnType() == Void.class;
   }
 
   @Override
   public Object invoke(A argument) {
     Object[] args = resolveArguments(argument);
     try {
-      Object result = method.invoke(target, args);
-      return isVoid ? null : result;
+      return method.invoke(target, args);
     } catch (InvocationTargetException e) {
       Throwable cause = e.getCause();
       if (cause instanceof RuntimeException re) {
@@ -67,9 +64,7 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   private Object[] resolveArguments(A argument) {
     Object[] args = new Object[paramInfos.length];
     for (int i = 0; i < paramInfos.length; i++) {
-      if (resolvers.get(i) != null) {
-        args[i] = resolvers.get(i).resolve(paramInfos[i], argument);
-      }
+      args[i] = resolvers.get(i).resolve(paramInfos[i], argument);
     }
     return args;
   }
