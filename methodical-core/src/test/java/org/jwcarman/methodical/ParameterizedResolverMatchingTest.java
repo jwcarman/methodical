@@ -98,7 +98,8 @@ class ParameterizedResolverMatchingTest {
     Method method = Greeter.class.getMethod("heyNumber", Integer.class);
     var greeter = new Greeter();
     TypeRef<Map<String, Integer>> argumentType = new TypeRef<>() {};
-    assertThatThrownBy(() -> factory.create(method, greeter, argumentType, List.of()))
+    List<ParameterResolver<? super Map<String, Integer>>> emptyList = List.of();
+    assertThatThrownBy(() -> factory.create(method, greeter, argumentType, emptyList))
         .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("No resolver found")
         .hasMessageContaining("Map<java.lang.String, java.lang.Integer>");
