@@ -31,9 +31,13 @@ class ParameterInfoAnnotationTest {
 
   @SuppressWarnings("unused")
   static class Fixtures {
-    public void annotated(@Named("custom") @Argument String value) {}
+    public void annotated(@Named("custom") @Argument String value) {
+      // no-op for test fixture
+    }
 
-    public void bare(String value) {}
+    public void bare(String value) {
+      // no-op for test fixture
+    }
   }
 
   private static ParameterInfo infoFor(String methodName) {

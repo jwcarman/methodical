@@ -26,7 +26,7 @@ import org.springframework.core.annotation.Order;
 
 @AutoConfiguration(
     before = MethodicalAutoConfiguration.class,
-    after = org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration.class)
+    afterName = "org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration")
 @ConditionalOnClass(name = "com.fasterxml.jackson.databind.ObjectMapper")
 @ConditionalOnBean(ObjectMapper.class)
 public class Jackson2AutoConfiguration {

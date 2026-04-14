@@ -96,10 +96,9 @@ class ParameterizedResolverMatchingTest {
     // Only the StringMapResolver registered; caller passes Map<String,Integer> — should fail fast.
     var factory = new DefaultMethodInvokerFactory(List.of(new StringMapResolver()));
     Method method = Greeter.class.getMethod("heyNumber", Integer.class);
-    assertThatThrownBy(
-            () ->
-                factory.create(
-                    method, new Greeter(), new TypeRef<Map<String, Integer>>() {}, List.of()))
+    var greeter = new Greeter();
+    TypeRef<Map<String, Integer>> argumentType = new TypeRef<>() {};
+    assertThatThrownBy(() -> factory.create(method, greeter, argumentType, List.of()))
         .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("No resolver found")
         .hasMessageContaining("Map<java.lang.String, java.lang.Integer>");

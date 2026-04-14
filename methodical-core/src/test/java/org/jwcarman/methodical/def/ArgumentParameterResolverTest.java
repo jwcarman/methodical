@@ -31,9 +31,13 @@ class ArgumentParameterResolverTest {
 
   @SuppressWarnings("unused")
   static class Fixtures {
-    public void takesString(String value) {}
+    public void takesString(String value) {
+      // no-op for test fixture
+    }
 
-    public void takesMap(Map<String, String> value) {}
+    public void takesMap(Map<String, String> value) {
+      // no-op for test fixture
+    }
   }
 
   private static ParameterInfo infoFor(String methodName) {

@@ -33,17 +33,29 @@ class ParameterInfoTest {
 
   @SuppressWarnings("unused")
   static class Fixtures {
-    public void raw(String s) {}
+    public void raw(String s) {
+      // no-op for test fixture
+    }
 
-    public void paramMap(Map<String, String> m) {}
+    public void paramMap(Map<String, String> m) {
+      // no-op for test fixture
+    }
 
-    public void paramObjectMap(Map<String, Object> m) {}
+    public void paramObjectMap(Map<String, Object> m) {
+      // no-op for test fixture
+    }
 
-    public void paramWildcard(Map<?, ?> m) {}
+    public void paramWildcard(Map<?, ?> m) {
+      // no-op for test fixture
+    }
 
-    public void paramUpperBound(Map<String, ? extends CharSequence> m) {}
+    public void paramUpperBound(Map<String, ? extends CharSequence> m) {
+      // no-op for test fixture
+    }
 
-    public void paramNested(List<Map<String, String>> l) {}
+    public void paramNested(List<Map<String, String>> l) {
+      // no-op for test fixture
+    }
   }
 
   private static ParameterInfo infoFor(String methodName) {
