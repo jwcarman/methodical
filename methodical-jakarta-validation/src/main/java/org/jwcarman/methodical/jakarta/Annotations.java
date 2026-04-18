@@ -17,8 +17,7 @@ package org.jwcarman.methodical.jakarta;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.util.LinkedHashSet;
-import java.util.Set;
+import org.apache.commons.lang3.ClassUtils;
 
 final class Annotations {
 
@@ -31,15 +30,13 @@ final class Annotations {
       return direct;
     }
     Class<?> declaring = target.getDeclaringClass();
-    Class<?> superclass = declaring.getSuperclass();
-    while (superclass != null && superclass != Object.class) {
+    for (Class<?> superclass : ClassUtils.getAllSuperclasses(declaring)) {
       A found = lookup(superclass, target.getName(), target.getParameterCount(), annotationType);
       if (found != null) {
         return found;
       }
-      superclass = superclass.getSuperclass();
     }
-    for (Class<?> iface : allInterfaces(declaring)) {
+    for (Class<?> iface : ClassUtils.getAllInterfaces(declaring)) {
       A found = lookup(iface, target.getName(), target.getParameterCount(), annotationType);
       if (found != null) {
         return found;
@@ -49,18 +46,20 @@ final class Annotations {
   }
 
   static <A extends Annotation> A findOnClass(Class<?> type, Class<A> annotationType) {
-    Class<?> current = type;
-    while (current != null && current != Object.class) {
-      A direct = current.getAnnotation(annotationType);
-      if (direct != null) {
-        return direct;
-      }
-      current = current.getSuperclass();
+    A direct = type.getAnnotation(annotationType);
+    if (direct != null) {
+      return direct;
     }
-    for (Class<?> iface : allInterfaces(type)) {
-      A direct = iface.getAnnotation(annotationType);
-      if (direct != null) {
-        return direct;
+    for (Class<?> superclass : ClassUtils.getAllSuperclasses(type)) {
+      A found = superclass.getAnnotation(annotationType);
+      if (found != null) {
+        return found;
+      }
+    }
+    for (Class<?> iface : ClassUtils.getAllInterfaces(type)) {
+      A direct2 = iface.getAnnotation(annotationType);
+      if (direct2 != null) {
+        return direct2;
       }
     }
     return null;
@@ -79,24 +78,6 @@ final class Annotations {
       }
     }
     return null;
-  }
-
-  private static Set<Class<?>> allInterfaces(Class<?> type) {
-    Set<Class<?>> out = new LinkedHashSet<>();
-    Class<?> current = type;
-    while (current != null && current != Object.class) {
-      collectInterfaces(current, out);
-      current = current.getSuperclass();
-    }
-    return out;
-  }
-
-  private static void collectInterfaces(Class<?> type, Set<Class<?>> sink) {
-    for (Class<?> iface : type.getInterfaces()) {
-      if (sink.add(iface)) {
-        collectInterfaces(iface, sink);
-      }
-    }
   }
 
   private static Method resolveBridged(Method bridge) {
