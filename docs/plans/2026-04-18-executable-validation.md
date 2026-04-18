@@ -1140,6 +1140,8 @@ Run: `./mvnw -pl methodical-jakarta-validation test -Dtest=JakartaMethodValidato
 
 **Step 3: Implement**
 
+`ValidationGroupResolver`'s output is a pure function of `(target.getClass(), method)`. Walking the class/interface hierarchy on every invocation would be wasteful, so cache the resolution per `(class, method)` pair. The cache is an internal optimization — SPI unchanged.
+
 ```java
 package org.jwcarman.methodical.jakarta;
 
@@ -1151,12 +1153,15 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import org.jwcarman.methodical.MethodValidator;
 
 public final class JakartaMethodValidator implements MethodValidator {
 
   private final ExecutableValidator executableValidator;
   private final ValidationGroupResolver groupResolver;
+  private final ConcurrentMap<CacheKey, ResolvedConfig> configCache = new ConcurrentHashMap<>();
 
   public JakartaMethodValidator(Validator validator, ValidationGroupResolver groupResolver) {
     this.executableValidator =
@@ -1169,9 +1174,9 @@ public final class JakartaMethodValidator implements MethodValidator {
     if (cannotValidate(target, method)) {
       return;
     }
-    Class<?>[] groups = groupResolver.resolveGroups(target, method);
+    ResolvedConfig config = configFor(target, method);
     Set<ConstraintViolation<Object>> violations =
-        executableValidator.validateParameters(target, method, args, groups);
+        executableValidator.validateParameters(target, method, args, config.groups());
     if (!violations.isEmpty()) {
       throw new ConstraintViolationException(violations);
     }
@@ -1182,12 +1187,12 @@ public final class JakartaMethodValidator implements MethodValidator {
     if (cannotValidate(target, method)) {
       return;
     }
-    if (!groupResolver.shouldValidateReturnValue(target, method)) {
+    ResolvedConfig config = configFor(target, method);
+    if (!config.validateReturnValue()) {
       return;
     }
-    Class<?>[] groups = groupResolver.resolveGroups(target, method);
     Set<ConstraintViolation<Object>> violations =
-        executableValidator.validateReturnValue(target, method, returnValue, groups);
+        executableValidator.validateReturnValue(target, method, returnValue, config.groups());
     if (!violations.isEmpty()) {
       throw new ConstraintViolationException(violations);
     }
@@ -1199,6 +1204,48 @@ public final class JakartaMethodValidator implements MethodValidator {
   private boolean cannotValidate(Object target, Method method) {
     return target == null || Modifier.isStatic(method.getModifiers());
   }
+
+  private ResolvedConfig configFor(Object target, Method method) {
+    CacheKey key = new CacheKey(target.getClass(), method);
+    return configCache.computeIfAbsent(
+        key,
+        k ->
+            new ResolvedConfig(
+                groupResolver.resolveGroups(target, method),
+                groupResolver.shouldValidateReturnValue(target, method)));
+  }
+
+  private record CacheKey(Class<?> targetClass, Method method) {}
+
+  private record ResolvedConfig(Class<?>[] groups, boolean validateReturnValue) {}
+}
+```
+
+Add a test verifying the cache is populated lazily and the resolver is consulted only once per `(class, method)` pair:
+
+```java
+@Test
+void resolver_is_invoked_once_per_class_method_pair() throws Exception {
+  jakarta.validation.Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+  int[] callCount = {0};
+  ValidationGroupResolver counting = new ValidationGroupResolver() {
+    @Override
+    public Class<?>[] resolveGroups(Object target, Method method) {
+      callCount[0]++;
+      return new Class<?>[] {Default.class};
+    }
+    @Override
+    public boolean shouldValidateReturnValue(Object target, Method method) {
+      return true;
+    }
+  };
+  JakartaMethodValidator v = new JakartaMethodValidator(validator, counting);
+  Method m = Service.class.getDeclaredMethod("greet", String.class);
+  Service target = new Service();
+  v.validateParameters(target, m, new Object[] {"a"});
+  v.validateParameters(target, m, new Object[] {"b"});
+  v.validateReturnValue(target, m, "x");
+  assertThat(callCount[0]).isEqualTo(1);
 }
 ```
 
