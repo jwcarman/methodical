@@ -19,10 +19,12 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodInvokerFactory;
+import org.jwcarman.methodical.MethodValidatorFactory;
 import org.jwcarman.methodical.NoOpMethodValidatorFactory;
 import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
@@ -33,12 +35,19 @@ import org.jwcarman.specular.TypeRef;
 public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
 
   private final List<ResolvedParameterResolver<?>> resolvers;
+  private final MethodValidatorFactory validatorFactory;
 
   public DefaultMethodInvokerFactory(List<ParameterResolver<?>> resolvers) {
+    this(resolvers, new NoOpMethodValidatorFactory());
+  }
+
+  public DefaultMethodInvokerFactory(
+      List<ParameterResolver<?>> resolvers, MethodValidatorFactory validatorFactory) {
     this.resolvers =
         resolvers.stream()
             .<ResolvedParameterResolver<?>>map(DefaultMethodInvokerFactory::wrap)
             .toList();
+    this.validatorFactory = Objects.requireNonNull(validatorFactory, "validatorFactory");
   }
 
   @Override
@@ -58,11 +67,7 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
     }
 
     return new DefaultMethodInvoker<>(
-        method,
-        target,
-        paramInfos,
-        assigned,
-        new NoOpMethodValidatorFactory().create(target, method));
+        method, target, paramInfos, assigned, validatorFactory.create(target, method));
   }
 
   private <A> ParameterResolver<? super A> findResolver(
