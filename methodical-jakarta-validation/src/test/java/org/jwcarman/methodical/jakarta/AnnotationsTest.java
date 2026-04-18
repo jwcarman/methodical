@@ -136,6 +136,11 @@ class AnnotationsTest {
   }
 
   @Test
+  void class_walk_terminates_when_interface_superclass_is_null() {
+    assertThat(Annotations.findOnClass(BareInterface.class, Marker.class)).isNull();
+  }
+
+  @Test
   void class_annotation_found_directly() {
     Marker found = Annotations.findOnClass(AnnotatedOnly.class, Marker.class);
     assertThat(found).isNotNull();
