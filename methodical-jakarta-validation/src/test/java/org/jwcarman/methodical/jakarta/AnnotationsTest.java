@@ -46,12 +46,16 @@ class AnnotationsTest {
   static class Base implements Iface {
     @Override
     @Marker("base-method")
-    public void hello() {}
+    public void hello() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class Child extends Base {
     @Override
-    public void hello() {}
+    public void hello() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   interface OnlyIface {
@@ -61,16 +65,22 @@ class AnnotationsTest {
 
   static class OnlyIfaceImpl implements OnlyIface {
     @Override
-    public void run() {}
+    public void run() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   @Marker("annotated-class")
   static class AnnotatedOnly {
-    public void hello() {}
+    public void hello() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class Plain {
-    public void hello() {}
+    public void hello() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   interface Handler<T> {
@@ -80,13 +90,17 @@ class AnnotationsTest {
 
   static class StringHandler implements Handler<String> {
     @Override
-    public void handle(String s) {}
+    public void handle(String s) {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class AnnotatedStringHandler implements Handler<String> {
     @Override
     @Marker("subclass-method")
-    public void handle(String s) {}
+    public void handle(String s) {
+      // fixture: only used for annotation lookup
+    }
   }
 
   @Test
@@ -152,18 +166,24 @@ class AnnotationsTest {
 
   static class SuperMarked {
     @Marker("superclass")
-    public void hello() {}
+    public void hello() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class SubMarked extends SuperMarked {
     @Override
     @Marker("subclass")
-    public void hello() {}
+    public void hello() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class Grandparent {
     @Marker("grandparent")
-    public void greet() {}
+    public void greet() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class Parent extends Grandparent {}
@@ -179,12 +199,16 @@ class AnnotationsTest {
 
   static class SubIfaceImpl implements SubIface {
     @Override
-    public void ping() {}
+    public void ping() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class BothAnnotatedParent {
     @Marker("parent-class-method")
-    public void act() {}
+    public void act() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   interface BothAnnotatedIface {
@@ -194,56 +218,80 @@ class AnnotationsTest {
 
   static class BothAnnotatedChild extends BothAnnotatedParent implements BothAnnotatedIface {
     @Override
-    public void act() {}
+    public void act() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class OverloadSuper {
     @Marker("one-arg")
-    public void work(String a) {}
+    public void work(String a) {
+      // fixture: only used for annotation lookup
+    }
 
-    public void work(String a, String b) {}
+    public void work(String a, String b) {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class OverloadChild extends OverloadSuper {
     @Override
-    public void work(String a) {}
+    public void work(String a) {
+      // fixture: only used for annotation lookup
+    }
 
     @Override
-    public void work(String a, String b) {}
+    public void work(String a, String b) {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class SubstringSuper {
     @Marker("handle-all")
-    public void handleAll() {}
+    public void handleAll() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class SubstringChild extends SubstringSuper {
-    public void handle() {}
+    public void handle() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class ZeroArgSuper {
     @Marker("zero-arg")
-    public void tick() {}
+    public void tick() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class ZeroArgChild extends ZeroArgSuper {
     @Override
-    public void tick() {}
+    public void tick() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class ConcreteIntHandler implements Handler<Integer> {
     @Override
     @Marker("concrete")
-    public void handle(Integer i) {}
+    public void handle(Integer i) {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class WithParamsNoAnnotations {
-    public void take(String a, int b) {}
+    public void take(String a, int b) {
+      // fixture: only used for annotation lookup
+    }
   }
 
   static class PrivateAnnotated {
     @Marker("private-method")
-    private void secret() {}
+    private void secret() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   @Marker("direct-class")
@@ -290,7 +338,9 @@ class AnnotationsTest {
 
   static class DiamondImpl implements DiamondA, DiamondB {
     @Override
-    public void doIt() {}
+    public void doIt() {
+      // fixture: only used for annotation lookup
+    }
   }
 
   // ---------------------------------------------------------------------------
