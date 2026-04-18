@@ -36,6 +36,8 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   private final List<ParameterResolver<? super A>> resolvers;
   private final MethodValidator validator;
 
+  @SuppressWarnings(
+      "java:S3011") // setAccessible is load-bearing for a reflective invocation library
   DefaultMethodInvoker(
       Method method,
       Object target,

@@ -76,7 +76,7 @@ class DefaultMethodInvokerValidationTest {
     Object result = invoker.invoke("world");
 
     assertThat(result).isEqualTo("hello world");
-    assertThat(log.toString()).isEqualTo("params:world;return:hello world;");
+    assertThat(log).hasToString("params:world;return:hello world;");
   }
 
   @Test

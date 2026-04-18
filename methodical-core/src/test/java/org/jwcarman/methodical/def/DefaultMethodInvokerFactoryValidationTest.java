@@ -27,6 +27,7 @@ import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodValidator;
 import org.jwcarman.methodical.MethodValidatorFactory;
+import org.jwcarman.methodical.param.ParameterResolver;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class DefaultMethodInvokerFactoryValidationTest {
@@ -79,7 +80,8 @@ class DefaultMethodInvokerFactoryValidationTest {
 
   @Test
   void rejects_null_validator_factory() {
-    assertThatThrownBy(() -> new DefaultMethodInvokerFactory(List.of(), null))
+    List<ParameterResolver<?>> emptyResolvers = List.of();
+    assertThatThrownBy(() -> new DefaultMethodInvokerFactory(emptyResolvers, null))
         .isInstanceOf(NullPointerException.class);
   }
 }

@@ -116,18 +116,17 @@ class JakartaMethodValidatorTest {
 
   @Test
   void rejects_null_method() {
-    assertThatThrownBy(
-            () ->
-                new JakartaMethodValidator(
-                    EXECUTABLE_VALIDATOR, new Service(), null, new Class<?>[] {Default.class}))
+    Service target = new Service();
+    Class<?>[] groups = {Default.class};
+    assertThatThrownBy(() -> new JakartaMethodValidator(EXECUTABLE_VALIDATOR, target, null, groups))
         .isInstanceOf(NullPointerException.class);
   }
 
   @Test
   void rejects_null_groups() throws Exception {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
-    assertThatThrownBy(
-            () -> new JakartaMethodValidator(EXECUTABLE_VALIDATOR, new Service(), m, null))
+    Service target = new Service();
+    assertThatThrownBy(() -> new JakartaMethodValidator(EXECUTABLE_VALIDATOR, target, m, null))
         .isInstanceOf(NullPointerException.class);
   }
 }

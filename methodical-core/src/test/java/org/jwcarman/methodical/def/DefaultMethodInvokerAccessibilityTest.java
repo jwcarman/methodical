@@ -32,6 +32,8 @@ import org.jwcarman.specular.TypeRef;
 class DefaultMethodInvokerAccessibilityTest {
 
   private static class PrivateService {
+    @SuppressWarnings(
+        "java:S1144") // invoked reflectively by the test below to prove setAccessible works
     private String secret(String name) {
       return "got: " + name;
     }
