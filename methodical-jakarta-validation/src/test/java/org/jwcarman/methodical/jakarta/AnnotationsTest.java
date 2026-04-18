@@ -256,7 +256,7 @@ class AnnotationsTest {
   }
 
   @Test
-  void bridge_resolution_walks_past_non_matching_siblings() throws Exception {
+  void bridge_resolution_walks_past_non_matching_siblings() {
     Method bridge = null;
     for (Method m : ConcreteWithSiblings.class.getDeclaredMethods()) {
       if (m.isBridge()) {
