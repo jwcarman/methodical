@@ -130,7 +130,7 @@ class JakartaMethodValidatorFactoryTest {
   @Test
   void static_methods_return_no_op() throws Exception {
     Method m = Service.class.getDeclaredMethod("staticMethod", String.class);
-    MethodValidator v = newFactory().create(null, m);
+    MethodValidator v = newFactory().create(new Service(), m);
     assertThatCode(() -> v.validateParameters(new Object[] {""})).doesNotThrowAnyException();
     assertThatCode(() -> v.validateReturnValue("")).doesNotThrowAnyException();
   }

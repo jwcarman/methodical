@@ -59,14 +59,12 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     Object result;
     try {
       result = method.invoke(target, args);
-    } catch (InvocationTargetException e) {
-      Throwable cause = e.getCause();
+    } catch (ReflectiveOperationException e) {
+      Throwable cause = e instanceof InvocationTargetException ite ? ite.getCause() : e;
       if (cause instanceof RuntimeException re) {
         throw re;
       }
       throw new MethodInvocationException("Method invocation failed: " + cause.getMessage(), cause);
-    } catch (IllegalAccessException e) {
-      throw new MethodInvocationException("Method invocation failed: " + e.getMessage(), e);
     }
     validator.validateReturnValue(result);
     return result;
