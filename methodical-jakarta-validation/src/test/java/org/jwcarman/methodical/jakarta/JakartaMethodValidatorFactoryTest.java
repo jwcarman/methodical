@@ -119,17 +119,19 @@ class JakartaMethodValidatorFactoryTest {
 
   @Test
   void resolver_invoked_at_bind_time_not_per_call() throws Exception {
-    int[] calls = {0};
+    int[] groupCalls = {0};
+    int[] flagCalls = {0};
     ValidationGroupResolver counting =
         new ValidationGroupResolver() {
           @Override
           public Class<?>[] resolveGroups(Object target, Method method) {
-            calls[0]++;
+            groupCalls[0]++;
             return new Class<?>[] {Default.class};
           }
 
           @Override
           public boolean shouldValidateReturnValue(Object target, Method method) {
+            flagCalls[0]++;
             return true;
           }
         };
@@ -139,12 +141,16 @@ class JakartaMethodValidatorFactoryTest {
     Service target = new Service();
 
     MethodValidator v = factory.create(target, m);
-    int afterCreate = calls[0];
+
+    assertThat(groupCalls[0]).isEqualTo(1);
+    assertThat(flagCalls[0]).isEqualTo(1);
+
     v.validateParameters(new Object[] {"a"});
     v.validateParameters(new Object[] {"b"});
     v.validateReturnValue("x");
+    v.validateReturnValue("y");
 
-    assertThat(afterCreate).isGreaterThanOrEqualTo(1);
-    assertThat(calls[0]).isEqualTo(afterCreate);
+    assertThat(groupCalls[0]).isEqualTo(1);
+    assertThat(flagCalls[0]).isEqualTo(1);
   }
 }
