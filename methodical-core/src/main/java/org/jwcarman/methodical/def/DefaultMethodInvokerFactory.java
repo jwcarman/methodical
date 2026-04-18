@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodInvokerFactory;
+import org.jwcarman.methodical.NoOpMethodValidatorFactory;
 import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
@@ -56,7 +57,12 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
       assigned.add(findResolver(method, argumentType, extraResolvers, paramInfos[i]));
     }
 
-    return new DefaultMethodInvoker<>(method, target, paramInfos, assigned);
+    return new DefaultMethodInvoker<>(
+        method,
+        target,
+        paramInfos,
+        assigned,
+        new NoOpMethodValidatorFactory().create(target, method));
   }
 
   private <A> ParameterResolver<? super A> findResolver(

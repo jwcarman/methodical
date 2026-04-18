@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 import org.jwcarman.methodical.MethodInvocationException;
 import org.jwcarman.methodical.MethodInvoker;
+import org.jwcarman.methodical.MethodValidator;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 
@@ -33,23 +34,28 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   private final Object target;
   private final ParameterInfo[] paramInfos;
   private final List<ParameterResolver<? super A>> resolvers;
+  private final MethodValidator validator;
 
   DefaultMethodInvoker(
       Method method,
       Object target,
       ParameterInfo[] paramInfos,
-      List<ParameterResolver<? super A>> resolvers) {
+      List<ParameterResolver<? super A>> resolvers,
+      MethodValidator validator) {
     this.method = method;
     this.target = target;
     this.paramInfos = paramInfos;
     this.resolvers = resolvers;
+    this.validator = validator;
   }
 
   @Override
   public Object invoke(A argument) {
     Object[] args = resolveArguments(argument);
+    validator.validateParameters(args);
+    Object result;
     try {
-      return method.invoke(target, args);
+      result = method.invoke(target, args);
     } catch (InvocationTargetException e) {
       Throwable cause = e.getCause();
       if (cause instanceof RuntimeException re) {
@@ -59,6 +65,8 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     } catch (IllegalAccessException e) {
       throw new MethodInvocationException("Method invocation failed: " + e.getMessage(), e);
     }
+    validator.validateReturnValue(result);
+    return result;
   }
 
   private Object[] resolveArguments(A argument) {
