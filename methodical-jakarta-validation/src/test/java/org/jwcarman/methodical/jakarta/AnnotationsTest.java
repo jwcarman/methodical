@@ -16,6 +16,8 @@
 package org.jwcarman.methodical.jakarta;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -100,6 +102,49 @@ class AnnotationsTest {
     }
   }
 
+  interface MixedSiblings {
+    void target();
+
+    void otherMethod();
+
+    void target(int x);
+  }
+
+  static class MixedSiblingsImpl implements MixedSiblings {
+    @Override
+    public void target() {
+      // fixture: unannotated — forces lookup to walk interface's declared methods
+    }
+
+    @Override
+    public void otherMethod() {
+      // fixture: different-name sibling, exercises lookup's name-mismatch branch
+    }
+
+    @Override
+    public void target(int x) {
+      // fixture: different-arity sibling, exercises lookup's arity-mismatch branch
+    }
+  }
+
+  abstract static class GenericBase<T> {
+    public abstract void handle(T t);
+  }
+
+  static class StringChild extends GenericBase<String> {
+    @Override
+    public void handle(String s) {
+      // fixture: produces a compiler-generated bridge handle(Object)
+    }
+  }
+
+  static class StringGrandchild extends StringChild {
+    @Override
+    public void handle(String s) {
+      // fixture: forces findOnMethod to lookup on StringChild, which has a bridge
+    }
+  }
+
   interface GenericWithSiblings<T> {
     @Marker("generic-iface-with-siblings")
     void op(T t);
@@ -177,6 +222,37 @@ class AnnotationsTest {
   void lookup_skips_supertype_method_when_unrelated_annotation_present() throws Exception {
     Method m = UnannotatedParentChild.class.getMethod("hello");
     assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
+  }
+
+  @Test
+  void lookup_walks_past_name_and_arity_mismatches() throws Exception {
+    Method m = MixedSiblingsImpl.class.getMethod("target");
+    assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
+  }
+
+  @Test
+  void lookup_skips_bridge_methods_in_supertype() throws Exception {
+    Method m = StringGrandchild.class.getMethod("handle", String.class);
+    assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
+  }
+
+  static class EmptyDeclaring {
+    // fixture: empty class used as a mock bridge's declaring class
+  }
+
+  @Test
+  void bridge_resolution_falls_back_to_input_when_no_sibling_exists() {
+    // Defensive path: javac always emits bridges with a non-bridge sibling, but we still handle
+    // the degenerate case. Mock a bridge method whose declaring class has no declared methods.
+    Method bridge = mock(Method.class);
+    when(bridge.isBridge()).thenReturn(true);
+    when(bridge.getName()).thenReturn("mysteryMethod");
+    when(bridge.getParameterCount()).thenReturn(0);
+    when(bridge.getAnnotation(Marker.class)).thenReturn(null);
+    Class<?> declaring = EmptyDeclaring.class;
+    when(bridge.getDeclaringClass()).thenAnswer(invocation -> declaring);
+
+    assertThat(Annotations.findOnMethod(bridge, Marker.class)).isNull();
   }
 
   @Test
