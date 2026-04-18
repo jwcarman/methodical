@@ -15,19 +15,16 @@
  */
 package org.jwcarman.methodical;
 
+import java.lang.reflect.Method;
+
 /**
- * Validates the parameters and return value of a single bound method invocation.
+ * Creates a {@link MethodValidator} bound to a specific {@code (target, method)} pair.
  *
- * <p>Obtained from {@link MethodValidatorFactory#create(Object, java.lang.reflect.Method)} once per
- * {@link MethodInvoker} at construction time. The bound validator captures any per-method
- * configuration (e.g., validation groups) so the per-invocation path stays cheap.
- *
- * <p>Implementations may throw any runtime exception when validation fails; the exception
- * propagates out of {@link MethodInvoker#invoke(Object)} unchanged.
+ * <p>Called once per {@link MethodInvoker} at construction time. Implementations should pre-resolve
+ * any per-method configuration here so the bound validator's hot path is cheap. The {@code target}
+ * argument may be {@code null} for static methods.
  */
-public interface MethodValidator {
+public interface MethodValidatorFactory {
 
-  void validateParameters(Object[] args);
-
-  void validateReturnValue(Object returnValue);
+  MethodValidator create(Object target, Method method);
 }

@@ -15,6 +15,7 @@
  */
 package org.jwcarman.methodical;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.lang.reflect.Method;
@@ -23,27 +24,34 @@ import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
-class NoOpMethodValidatorTest {
+class NoOpMethodValidatorFactoryTest {
 
   @Test
-  void validate_parameters_does_nothing() throws Exception {
-    MethodValidator v = new NoOpMethodValidator();
+  void created_validator_does_nothing_for_parameters() throws Exception {
     Method m = String.class.getMethod("length");
-    assertThatCode(() -> v.validateParameters("x", m, new Object[0])).doesNotThrowAnyException();
+    MethodValidator v = new NoOpMethodValidatorFactory().create("x", m);
+    assertThatCode(() -> v.validateParameters(new Object[0])).doesNotThrowAnyException();
   }
 
   @Test
-  void validate_return_value_does_nothing() throws Exception {
-    MethodValidator v = new NoOpMethodValidator();
+  void created_validator_does_nothing_for_return_value() throws Exception {
     Method m = String.class.getMethod("length");
-    assertThatCode(() -> v.validateReturnValue("x", m, 1)).doesNotThrowAnyException();
+    MethodValidator v = new NoOpMethodValidatorFactory().create("x", m);
+    assertThatCode(() -> v.validateReturnValue(1)).doesNotThrowAnyException();
   }
 
   @Test
   void accepts_null_target_for_static_methods() throws Exception {
-    MethodValidator v = new NoOpMethodValidator();
     Method m = Integer.class.getMethod("parseInt", String.class);
-    assertThatCode(() -> v.validateParameters(null, m, new Object[] {"1"}))
-        .doesNotThrowAnyException();
+    MethodValidator v = new NoOpMethodValidatorFactory().create(null, m);
+    assertThatCode(() -> v.validateParameters(new Object[] {"1"})).doesNotThrowAnyException();
+  }
+
+  @Test
+  void returns_singleton_validator_instance() throws Exception {
+    NoOpMethodValidatorFactory factory = new NoOpMethodValidatorFactory();
+    Method m1 = String.class.getMethod("length");
+    Method m2 = Integer.class.getMethod("parseInt", String.class);
+    assertThat(factory.create("x", m1)).isSameAs(factory.create(123, m2));
   }
 }

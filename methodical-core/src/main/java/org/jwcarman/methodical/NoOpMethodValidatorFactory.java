@@ -17,16 +17,24 @@ package org.jwcarman.methodical;
 
 import java.lang.reflect.Method;
 
-/** No-op {@link MethodValidator}; the default when validation is not configured. */
-public final class NoOpMethodValidator implements MethodValidator {
+/** No-op {@link MethodValidatorFactory}; the default when validation is not configured. */
+public final class NoOpMethodValidatorFactory implements MethodValidatorFactory {
+
+  private static final MethodValidator NO_OP =
+      new MethodValidator() {
+        @Override
+        public void validateParameters(Object[] args) {
+          // intentionally empty
+        }
+
+        @Override
+        public void validateReturnValue(Object returnValue) {
+          // intentionally empty
+        }
+      };
 
   @Override
-  public void validateParameters(Object target, Method method, Object[] args) {
-    // intentionally empty
-  }
-
-  @Override
-  public void validateReturnValue(Object target, Method method, Object returnValue) {
-    // intentionally empty
+  public MethodValidator create(Object target, Method method) {
+    return NO_OP;
   }
 }
