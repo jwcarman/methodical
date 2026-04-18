@@ -87,6 +87,39 @@ class AnnotationsTest {
     void doSomething();
   }
 
+  static class UnannotatedParent {
+    public void hello() {
+      // fixture: has method, lacks annotation — exercises lookup's annotation==null branch
+    }
+  }
+
+  static class UnannotatedParentChild extends UnannotatedParent {
+    @Override
+    public void hello() {
+      // fixture: only used for annotation lookup
+    }
+  }
+
+  interface GenericWithSiblings<T> {
+    @Marker("generic-iface-with-siblings")
+    void op(T t);
+  }
+
+  static class ConcreteWithSiblings implements GenericWithSiblings<String> {
+    @Override
+    public void op(String s) {
+      // fixture: target for bridge resolution
+    }
+
+    public void op(String a, String b) {
+      // fixture: different-arity sibling, exercises resolveBridged's arity-mismatch branch
+    }
+
+    public void other() {
+      // fixture: different-name sibling, exercises resolveBridged's name-mismatch branch
+    }
+  }
+
   interface Handler<T> {
     @Marker("generic-iface")
     void handle(T t);
@@ -138,6 +171,27 @@ class AnnotationsTest {
   @Test
   void class_walk_terminates_when_interface_superclass_is_null() {
     assertThat(Annotations.findOnClass(BareInterface.class, Marker.class)).isNull();
+  }
+
+  @Test
+  void lookup_skips_supertype_method_when_unrelated_annotation_present() throws Exception {
+    Method m = UnannotatedParentChild.class.getMethod("hello");
+    assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
+  }
+
+  @Test
+  void bridge_resolution_walks_past_non_matching_siblings() throws Exception {
+    Method bridge = null;
+    for (Method m : ConcreteWithSiblings.class.getDeclaredMethods()) {
+      if (m.isBridge()) {
+        bridge = m;
+        break;
+      }
+    }
+    assertThat(bridge).as("compiler should have emitted a bridge for op(Object)").isNotNull();
+    Marker found = Annotations.findOnMethod(bridge, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("generic-iface-with-siblings");
   }
 
   @Test
