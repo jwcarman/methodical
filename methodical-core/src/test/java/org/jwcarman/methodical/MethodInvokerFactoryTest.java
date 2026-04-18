@@ -94,15 +94,6 @@ class MethodInvokerFactoryTest {
   }
 
   @Test
-  void shouldWrapIllegalAccessInMethodInvocationException() throws Exception {
-    var factory = new DefaultMethodInvokerFactory(List.of());
-    Method method = PrivateTarget.class.getDeclaredMethod("privateMethod");
-    var target = new PrivateTarget();
-    MethodInvoker<String> invoker = factory.create(method, target, String.class);
-    assertThatThrownBy(() -> invoker.invoke("test")).isInstanceOf(MethodInvocationException.class);
-  }
-
-  @Test
   void shouldUseFirstSupportingResolver() throws Exception {
     var first = new StringResolver();
     var second = new AlternateStringResolver();
@@ -272,12 +263,6 @@ class MethodInvokerFactoryTest {
 
     public String throwsChecked() throws IOException {
       throw new IOException("checked error");
-    }
-  }
-
-  static class PrivateTarget {
-    private String privateMethod() {
-      return "private";
     }
   }
 

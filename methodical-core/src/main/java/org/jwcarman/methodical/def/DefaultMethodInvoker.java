@@ -47,6 +47,7 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     this.paramInfos = paramInfos;
     this.resolvers = resolvers;
     this.validator = validator;
+    method.setAccessible(true);
   }
 
   @Override

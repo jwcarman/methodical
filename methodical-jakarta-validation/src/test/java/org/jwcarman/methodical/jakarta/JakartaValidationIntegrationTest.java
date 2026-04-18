@@ -32,9 +32,9 @@ import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
-public class JakartaValidationIntegrationTest {
+class JakartaValidationIntegrationTest {
 
-  public static class Greeter {
+  static class Greeter {
     public String greet(@Argument @NotBlank String name) {
       return "hello " + name;
     }
