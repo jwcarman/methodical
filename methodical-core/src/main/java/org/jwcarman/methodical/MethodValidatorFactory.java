@@ -24,6 +24,7 @@ import java.lang.reflect.Method;
  * any per-method configuration here so the bound validator's hot path is cheap. The {@code target}
  * argument may be {@code null} for static methods.
  */
+@FunctionalInterface
 public interface MethodValidatorFactory {
 
   MethodValidator create(Object target, Method method);
