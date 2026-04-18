@@ -20,9 +20,9 @@ import java.lang.reflect.Method;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-final class AnnotationFinder {
+final class Annotations {
 
-  private AnnotationFinder() {}
+  private Annotations() {}
 
   static <A extends Annotation> A findOnMethod(Method method, Class<A> annotationType) {
     Method target = method.isBridge() ? resolveBridged(method) : method;

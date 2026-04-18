@@ -27,7 +27,7 @@ import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
-class AnnotationFinderTest {
+class AnnotationsTest {
 
   @Target({ElementType.TYPE, ElementType.METHOD})
   @Retention(RetentionPolicy.RUNTIME)
@@ -90,7 +90,7 @@ class AnnotationFinderTest {
   @Test
   void method_annotation_found_via_overridden_chain() throws Exception {
     Method m = Child.class.getMethod("hello");
-    Marker found = AnnotationFinder.findOnMethod(m, Marker.class);
+    Marker found = Annotations.findOnMethod(m, Marker.class);
     assertThat(found).isNotNull();
     assertThat(found.value()).isEqualTo("base-method");
   }
@@ -98,7 +98,7 @@ class AnnotationFinderTest {
   @Test
   void method_annotation_found_on_interface() throws Exception {
     Method m = OnlyIfaceImpl.class.getMethod("run");
-    Marker found = AnnotationFinder.findOnMethod(m, Marker.class);
+    Marker found = Annotations.findOnMethod(m, Marker.class);
     assertThat(found).isNotNull();
     assertThat(found.value()).isEqualTo("only-iface");
   }
@@ -106,32 +106,32 @@ class AnnotationFinderTest {
   @Test
   void method_annotation_returns_null_when_absent() throws Exception {
     Method m = Plain.class.getMethod("hello");
-    assertThat(AnnotationFinder.findOnMethod(m, Marker.class)).isNull();
+    assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
   }
 
   @Test
   void class_annotation_found_directly() {
-    Marker found = AnnotationFinder.findOnClass(AnnotatedOnly.class, Marker.class);
+    Marker found = Annotations.findOnClass(AnnotatedOnly.class, Marker.class);
     assertThat(found).isNotNull();
     assertThat(found.value()).isEqualTo("annotated-class");
   }
 
   @Test
   void class_annotation_found_via_superclass() {
-    Marker found = AnnotationFinder.findOnClass(Child.class, Marker.class);
+    Marker found = Annotations.findOnClass(Child.class, Marker.class);
     assertThat(found).isNotNull();
     assertThat(found.value()).isEqualTo("super-class");
   }
 
   @Test
   void class_annotation_returns_null_when_absent() {
-    assertThat(AnnotationFinder.findOnClass(Plain.class, Marker.class)).isNull();
+    assertThat(Annotations.findOnClass(Plain.class, Marker.class)).isNull();
   }
 
   @Test
   void method_annotation_found_on_generic_interface_despite_erasure() throws Exception {
     Method m = StringHandler.class.getMethod("handle", String.class);
-    Marker found = AnnotationFinder.findOnMethod(m, Marker.class);
+    Marker found = Annotations.findOnMethod(m, Marker.class);
     assertThat(found).isNotNull();
     assertThat(found.value()).isEqualTo("generic-iface");
   }
@@ -139,7 +139,7 @@ class AnnotationFinderTest {
   @Test
   void method_annotation_on_overriding_method_wins_over_generic_interface() throws Exception {
     Method m = AnnotatedStringHandler.class.getMethod("handle", String.class);
-    Marker found = AnnotationFinder.findOnMethod(m, Marker.class);
+    Marker found = Annotations.findOnMethod(m, Marker.class);
     assertThat(found).isNotNull();
     assertThat(found.value()).isEqualTo("subclass-method");
   }

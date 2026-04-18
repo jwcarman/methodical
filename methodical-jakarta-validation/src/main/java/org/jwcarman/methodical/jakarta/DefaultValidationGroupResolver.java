@@ -48,11 +48,11 @@ public final class DefaultValidationGroupResolver implements ValidationGroupReso
   }
 
   private MethodValidation findAnnotation(Object target, Method method) {
-    MethodValidation onMethod = AnnotationFinder.findOnMethod(method, MethodValidation.class);
+    MethodValidation onMethod = Annotations.findOnMethod(method, MethodValidation.class);
     if (onMethod != null) {
       return onMethod;
     }
     Class<?> type = target != null ? target.getClass() : method.getDeclaringClass();
-    return AnnotationFinder.findOnClass(type, MethodValidation.class);
+    return Annotations.findOnClass(type, MethodValidation.class);
   }
 }
