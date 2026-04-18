@@ -52,7 +52,9 @@ class DefaultMethodInvokerFactoryValidationTest {
             }
 
             @Override
-            public void validateReturnValue(Object returnValue) {}
+            public void validateReturnValue(Object returnValue) {
+              // intentionally empty: test only exercises parameter validation
+            }
           };
         };
 
