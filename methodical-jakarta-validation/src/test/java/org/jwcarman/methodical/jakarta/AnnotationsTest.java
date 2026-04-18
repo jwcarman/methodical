@@ -21,7 +21,9 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
@@ -142,5 +144,321 @@ class AnnotationsTest {
     Marker found = Annotations.findOnMethod(m, Marker.class);
     assertThat(found).isNotNull();
     assertThat(found.value()).isEqualTo("subclass-method");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Additional fixtures
+  // ---------------------------------------------------------------------------
+
+  static class SuperMarked {
+    @Marker("superclass")
+    public void hello() {}
+  }
+
+  static class SubMarked extends SuperMarked {
+    @Override
+    @Marker("subclass")
+    public void hello() {}
+  }
+
+  static class Grandparent {
+    @Marker("grandparent")
+    public void greet() {}
+  }
+
+  static class Parent extends Grandparent {}
+
+  static class GrandChild extends Parent {}
+
+  interface SuperIface {
+    @Marker("super-iface")
+    void ping();
+  }
+
+  interface SubIface extends SuperIface {}
+
+  static class SubIfaceImpl implements SubIface {
+    @Override
+    public void ping() {}
+  }
+
+  static class BothAnnotatedParent {
+    @Marker("parent-class-method")
+    public void act() {}
+  }
+
+  interface BothAnnotatedIface {
+    @Marker("interface-method")
+    void act();
+  }
+
+  static class BothAnnotatedChild extends BothAnnotatedParent implements BothAnnotatedIface {
+    @Override
+    public void act() {}
+  }
+
+  static class OverloadSuper {
+    @Marker("one-arg")
+    public void work(String a) {}
+
+    public void work(String a, String b) {}
+  }
+
+  static class OverloadChild extends OverloadSuper {
+    @Override
+    public void work(String a) {}
+
+    @Override
+    public void work(String a, String b) {}
+  }
+
+  static class SubstringSuper {
+    @Marker("handle-all")
+    public void handleAll() {}
+  }
+
+  static class SubstringChild extends SubstringSuper {
+    public void handle() {}
+  }
+
+  static class ZeroArgSuper {
+    @Marker("zero-arg")
+    public void tick() {}
+  }
+
+  static class ZeroArgChild extends ZeroArgSuper {
+    @Override
+    public void tick() {}
+  }
+
+  static class ConcreteIntHandler implements Handler<Integer> {
+    @Override
+    @Marker("concrete")
+    public void handle(Integer i) {}
+  }
+
+  static class WithParamsNoAnnotations {
+    public void take(String a, int b) {}
+  }
+
+  static class PrivateAnnotated {
+    @Marker("private-method")
+    private void secret() {}
+  }
+
+  @Marker("direct-class")
+  static class DirectWinsChild extends SuperMarkedClass {}
+
+  @Marker("super-only")
+  static class SuperMarkedClass {}
+
+  @Marker("gp-class")
+  static class ClassGrandparent {}
+
+  static class ClassParent extends ClassGrandparent {}
+
+  static class ClassGrandChild extends ClassParent {}
+
+  @Marker("direct-iface")
+  interface DirectlyAnnotatedIface {}
+
+  static class ImplementsAnnotatedIface implements DirectlyAnnotatedIface {}
+
+  @Marker("super-annotated-iface")
+  interface AnnotatedSuperIface {}
+
+  interface ExtendsAnnotatedIface extends AnnotatedSuperIface {}
+
+  static class ImplementsExtendsAnnotated implements ExtendsAnnotatedIface {}
+
+  static class SuperWithAnnotatedIface implements DirectlyAnnotatedIface {}
+
+  static class ChildOfSuperWithAnnotatedIface extends SuperWithAnnotatedIface {}
+
+  @Marker("class-wins")
+  static class ClassWinsOverIface implements DirectlyAnnotatedIface {}
+
+  @Marker("diamond-a")
+  interface DiamondA {
+    void doIt();
+  }
+
+  interface DiamondB {
+    @Marker("diamond-b-method")
+    void doIt();
+  }
+
+  static class DiamondImpl implements DiamondA, DiamondB {
+    @Override
+    public void doIt() {}
+  }
+
+  // ---------------------------------------------------------------------------
+  // findOnMethod tests
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void method_direct_annotation_wins_over_superclass() throws Exception {
+    Method m = SubMarked.class.getMethod("hello");
+    Marker found = Annotations.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("subclass");
+  }
+
+  @Test
+  void method_annotation_found_through_multi_level_superclass_chain() throws Exception {
+    Method m = GrandChild.class.getMethod("greet");
+    Marker found = Annotations.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("grandparent");
+  }
+
+  @Test
+  void method_annotation_found_through_super_interface() throws Exception {
+    Method m = SubIfaceImpl.class.getMethod("ping");
+    Marker found = Annotations.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("super-iface");
+  }
+
+  @Test
+  void method_superclass_chain_wins_over_interface() throws Exception {
+    Method m = BothAnnotatedChild.class.getMethod("act");
+    Marker found = Annotations.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("parent-class-method");
+  }
+
+  @Test
+  void method_overloads_distinguished_by_arity_picks_one_arg() throws Exception {
+    Method oneArg = OverloadChild.class.getMethod("work", String.class);
+    Marker found = Annotations.findOnMethod(oneArg, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("one-arg");
+  }
+
+  @Test
+  void method_overloads_distinguished_by_arity_two_arg_is_not_annotated() throws Exception {
+    Method twoArg = OverloadChild.class.getMethod("work", String.class, String.class);
+    assertThat(Annotations.findOnMethod(twoArg, Marker.class)).isNull();
+  }
+
+  @Test
+  void method_name_does_not_match_by_substring() throws Exception {
+    Method m = SubstringChild.class.getMethod("handle");
+    assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
+  }
+
+  @Test
+  void method_annotation_on_zero_arg_method_resolved_via_arity() throws Exception {
+    Method m = ZeroArgChild.class.getMethod("tick");
+    Marker found = Annotations.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("zero-arg");
+  }
+
+  @Test
+  void method_bridge_resolves_to_concrete_sibling() {
+    Method bridge = null;
+    for (Method candidate : ConcreteIntHandler.class.getDeclaredMethods()) {
+      if (candidate.isBridge() && candidate.getName().equals("handle")) {
+        bridge = candidate;
+        break;
+      }
+    }
+    assertThat(bridge).as("synthetic bridge method expected on ConcreteIntHandler").isNotNull();
+    Marker found = Annotations.findOnMethod(bridge, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("concrete");
+  }
+
+  @Test
+  void method_with_parameters_returns_null_when_no_annotation_anywhere() throws Exception {
+    Method m = WithParamsNoAnnotations.class.getMethod("take", String.class, int.class);
+    assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
+  }
+
+  @Test
+  void method_private_method_annotation_is_found() throws Exception {
+    Method m = PrivateAnnotated.class.getDeclaredMethod("secret");
+    Marker found = Annotations.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("private-method");
+  }
+
+  // ---------------------------------------------------------------------------
+  // findOnClass tests
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void class_direct_annotation_wins_over_superclass() {
+    Marker found = Annotations.findOnClass(DirectWinsChild.class, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("direct-class");
+  }
+
+  @Test
+  void class_annotation_found_through_multi_level_superclass_chain() {
+    Marker found = Annotations.findOnClass(ClassGrandChild.class, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("gp-class");
+  }
+
+  @Test
+  void class_annotation_found_on_directly_implemented_interface() {
+    Marker found = Annotations.findOnClass(ImplementsAnnotatedIface.class, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("direct-iface");
+  }
+
+  @Test
+  void class_annotation_found_on_super_interface() {
+    Marker found = Annotations.findOnClass(ImplementsExtendsAnnotated.class, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("super-annotated-iface");
+  }
+
+  @Test
+  void class_annotation_found_on_superclasses_interface() {
+    Marker found = Annotations.findOnClass(ChildOfSuperWithAnnotatedIface.class, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("direct-iface");
+  }
+
+  @Test
+  void class_chain_wins_over_interface() {
+    Marker found = Annotations.findOnClass(ClassWinsOverIface.class, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("class-wins");
+  }
+
+  @Test
+  void class_annotation_found_on_one_of_two_diamond_interfaces() {
+    // DiamondA is declared first on the implements clause, so LinkedHashSet yields it first.
+    Marker found = Annotations.findOnClass(DiamondImpl.class, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("diamond-a");
+  }
+
+  @Test
+  void method_annotation_found_on_one_of_two_diamond_interfaces() throws Exception {
+    // Only DiamondB annotates doIt(); DiamondA does not. Should still find DiamondB's annotation.
+    Method m = DiamondImpl.class.getMethod("doIt");
+    Marker found = Annotations.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("diamond-b-method");
+  }
+
+  // ---------------------------------------------------------------------------
+  // Utility-class shape
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void annotations_class_is_final_with_private_constructor() throws Exception {
+    assertThat(Modifier.isFinal(Annotations.class.getModifiers())).isTrue();
+    Constructor<Annotations> ctor = Annotations.class.getDeclaredConstructor();
+    assertThat(Modifier.isPrivate(ctor.getModifiers())).isTrue();
+    ctor.setAccessible(true);
+    assertThat(ctor.newInstance()).isNotNull();
   }
 }
