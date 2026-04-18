@@ -71,6 +71,22 @@ class AnnotationFinderTest {
     public void hello() {}
   }
 
+  interface Handler<T> {
+    @Marker("generic-iface")
+    void handle(T t);
+  }
+
+  static class StringHandler implements Handler<String> {
+    @Override
+    public void handle(String s) {}
+  }
+
+  static class AnnotatedStringHandler implements Handler<String> {
+    @Override
+    @Marker("subclass-method")
+    public void handle(String s) {}
+  }
+
   @Test
   void method_annotation_found_via_overridden_chain() throws Exception {
     Method m = Child.class.getMethod("hello");
@@ -110,5 +126,21 @@ class AnnotationFinderTest {
   @Test
   void class_annotation_returns_null_when_absent() {
     assertThat(AnnotationFinder.findOnClass(Plain.class, Marker.class)).isNull();
+  }
+
+  @Test
+  void method_annotation_found_on_generic_interface_despite_erasure() throws Exception {
+    Method m = StringHandler.class.getMethod("handle", String.class);
+    Marker found = AnnotationFinder.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("generic-iface");
+  }
+
+  @Test
+  void method_annotation_on_overriding_method_wins_over_generic_interface() throws Exception {
+    Method m = AnnotatedStringHandler.class.getMethod("handle", String.class);
+    Marker found = AnnotationFinder.findOnMethod(m, Marker.class);
+    assertThat(found).isNotNull();
+    assertThat(found.value()).isEqualTo("subclass-method");
   }
 }

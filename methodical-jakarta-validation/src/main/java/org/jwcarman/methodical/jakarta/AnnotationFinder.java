@@ -33,14 +33,14 @@ final class AnnotationFinder {
     Class<?> declaring = target.getDeclaringClass();
     Class<?> superclass = declaring.getSuperclass();
     while (superclass != null && superclass != Object.class) {
-      A found = lookup(superclass, target.getName(), target.getParameterTypes(), annotationType);
+      A found = lookup(superclass, target.getName(), target.getParameterCount(), annotationType);
       if (found != null) {
         return found;
       }
       superclass = superclass.getSuperclass();
     }
     for (Class<?> iface : allInterfaces(declaring)) {
-      A found = lookup(iface, target.getName(), target.getParameterTypes(), annotationType);
+      A found = lookup(iface, target.getName(), target.getParameterCount(), annotationType);
       if (found != null) {
         return found;
       }
@@ -67,13 +67,18 @@ final class AnnotationFinder {
   }
 
   private static <A extends Annotation> A lookup(
-      Class<?> type, String name, Class<?>[] params, Class<A> annotationType) {
-    try {
-      Method m = type.getDeclaredMethod(name, params);
-      return m.getAnnotation(annotationType);
-    } catch (NoSuchMethodException ignored) {
-      return null;
+      Class<?> type, String name, int parameterCount, Class<A> annotationType) {
+    for (Method candidate : type.getDeclaredMethods()) {
+      if (!candidate.isBridge()
+          && candidate.getName().equals(name)
+          && candidate.getParameterCount() == parameterCount) {
+        A annotation = candidate.getAnnotation(annotationType);
+        if (annotation != null) {
+          return annotation;
+        }
+      }
     }
+    return null;
   }
 
   private static Set<Class<?>> allInterfaces(Class<?> type) {
