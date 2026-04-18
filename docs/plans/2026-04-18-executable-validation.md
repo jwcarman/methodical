@@ -2,18 +2,19 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add optional Jakarta Bean Validation support to Methodical via a small `MethodValidator` SPI in core (no-op by default) and a separate `methodical-jakarta-validation` module that wires Jakarta's `ExecutableValidator` into the invocation flow.
+**Goal:** Add optional Jakarta Bean Validation support to Methodical via a small `MethodValidatorFactory`/`MethodValidator` SPI in core (no-op by default) and a separate `methodical-jakarta-validation` module that wires Jakarta's `ExecutableValidator` into the invocation flow.
 
-**Architecture:** Single `DefaultMethodInvokerFactory` gains an optional `MethodValidator` constructor arg (defaults to `NoOpMethodValidator`). `DefaultMethodInvoker` calls `validateParameters` after argument resolution and `validateReturnValue` after reflective invocation. The Jakarta module provides a `JakartaMethodValidator`, a `@MethodValidation` annotation (groups + return-value toggle), and a `ValidationGroupResolver` that walks the class/interface hierarchy (including bridge-method resolution) to find the annotation.
+**Architecture:** Factory SPI mirrors the existing `MethodInvokerFactory`/`MethodInvoker` pair: `MethodValidatorFactory.create(target, method)` is called once at invoker construction and returns a pre-bound `MethodValidator`. The bound validator's per-invocation API is just `validateParameters(args)` / `validateReturnValue(result)` — no `target` or `Method` re-passed on the hot path, no internal cache. `NoOpMethodValidatorFactory` returns a singleton no-op `MethodValidator`. The Jakarta module's factory resolves groups once at bind time.
 
 **Tech Stack:** Java 25, JUnit 5, AssertJ, Mockito, Maven multi-module, Jakarta Bean Validation 3.x API, Hibernate Validator 9.x (test-scope).
 
 **Design decisions already settled:**
-- One factory, not a wrapper. `ValidatingMethodInvokerFactory` is rejected.
+- Factory SPI in core — no internal cache, no per-invocation hierarchy walk. Resolution happens once at bind time.
+- One invoker factory, not a wrapper. `ValidatingMethodInvokerFactory` is rejected.
 - `@MethodValidation` lives in the Jakarta module, not core (groups field is Jakarta-specific).
 - Annotation inheritance: walks superclass chain + interfaces; method-level resolution must handle `Method.isBridge()` by jumping to the real target.
 - Resolver order: method annotation → class annotation → constructor-default groups. No silent `Default.class` fallback in the resolver — the constructor default carries that responsibility.
-- Static methods: Jakarta's `ExecutableValidator` requires a non-null target. The Jakarta module's validator skips validation when `Modifier.isStatic(method.getModifiers())` — documented as a known limitation. (Core's `MethodValidator` contract permits a null target; impls decide.)
+- Static methods: Jakarta's `ExecutableValidator` requires a non-null target. The Jakarta module's factory returns the singleton no-op validator when `target == null` or `Modifier.isStatic(method.getModifiers())` — documented as a known limitation.
 - Exception leakage: `ConstraintViolationException` propagates directly; opt-in is at the dependency level.
 
 **Out of scope for this plan:** Spring Boot autoconfiguration for Jakarta (deferred — separate plan when needed).
@@ -23,21 +24,51 @@
 ## Conventions
 
 - Every new `.java` file starts with the Apache 2.0 license header used in existing files (see `methodical-core/src/main/java/org/jwcarman/methodical/MethodInvoker.java`).
-- Code formatting is enforced by spotless (Google Java Format). Run `./mvnw spotless:apply` before committing if needed.
-- Tests use `@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)` and snake_case method names — match the existing convention in `DefaultMethodInvokerFactoryWrapTest`.
+- Code formatting is enforced by spotless (Google Java Format). Run `mvn spotless:apply` before committing if needed. (No `./mvnw` wrapper in this repo — use the system `mvn`.)
+- Tests use `@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)` and snake_case method names.
 - No star imports, no `@SuppressWarnings`, no comments unless explaining a non-obvious *why*.
 - Commit after each task. Use conventional-commit prefixes: `feat:`, `test:`, `refactor:`, `docs:`.
 
 ---
 
-# Phase 1 — Core hook
+# Phase 1 — Core SPI
 
-## Task 1: Add `MethodValidator` interface to core
+## Task 1+2 (combined refactor): Factory SPI + no-op factory
+
+This task replaces the earlier per-invocation `MethodValidator` SPI (commits `43c1566`, `bc2d6f4`) with the factory shape. The earlier SPI was a per-call `validateParameters(target, method, args)`; we're collapsing the (target, method) into a one-time bind.
 
 **Files:**
-- Create: `methodical-core/src/main/java/org/jwcarman/methodical/MethodValidator.java`
+- Replace: `methodical-core/src/main/java/org/jwcarman/methodical/MethodValidator.java` (now the bound, per-invoker validator)
+- Create: `methodical-core/src/main/java/org/jwcarman/methodical/MethodValidatorFactory.java`
+- Replace: `methodical-core/src/main/java/org/jwcarman/methodical/NoOpMethodValidator.java` → delete; replaced by `NoOpMethodValidatorFactory`
+- Create: `methodical-core/src/main/java/org/jwcarman/methodical/NoOpMethodValidatorFactory.java`
+- Delete: `methodical-core/src/test/java/org/jwcarman/methodical/NoOpMethodValidatorTest.java`
+- Create: `methodical-core/src/test/java/org/jwcarman/methodical/NoOpMethodValidatorFactoryTest.java`
 
-**Step 1: Write the file**
+### `MethodValidator.java` (after license header)
+
+```java
+package org.jwcarman.methodical;
+
+/**
+ * Validates the parameters and return value of a single bound method invocation.
+ *
+ * <p>Obtained from {@link MethodValidatorFactory#create(Object, java.lang.reflect.Method)}
+ * once per {@link MethodInvoker} at construction time. The bound validator captures any
+ * per-method configuration (e.g., validation groups) so the per-invocation path stays cheap.
+ *
+ * <p>Implementations may throw any runtime exception when validation fails;
+ * the exception propagates out of {@link MethodInvoker#invoke(Object)} unchanged.
+ */
+public interface MethodValidator {
+
+  void validateParameters(Object[] args);
+
+  void validateReturnValue(Object returnValue);
+}
+```
+
+### `MethodValidatorFactory.java` (after license header)
 
 ```java
 package org.jwcarman.methodical;
@@ -45,46 +76,54 @@ package org.jwcarman.methodical;
 import java.lang.reflect.Method;
 
 /**
- * Optional hook invoked around reflective method invocation to validate
- * parameters before the call and the return value after.
+ * Creates a {@link MethodValidator} bound to a specific {@code (target, method)} pair.
  *
- * <p>Implementations may throw any runtime exception when validation fails;
- * the exception propagates out of {@link MethodInvoker#invoke(Object)} unchanged.
+ * <p>Called once per {@link MethodInvoker} at construction time. Implementations should
+ * pre-resolve any per-method configuration here so the bound validator's hot path is cheap.
  * The {@code target} argument may be {@code null} for static methods.
  */
-public interface MethodValidator {
+public interface MethodValidatorFactory {
 
-  void validateParameters(Object target, Method method, Object[] args);
-
-  void validateReturnValue(Object target, Method method, Object returnValue);
+  MethodValidator create(Object target, Method method);
 }
 ```
 
-**Step 2: Verify compile**
-
-Run: `./mvnw -pl methodical-core compile -q`
-Expected: success
-
-**Step 3: Commit**
-
-```bash
-git add methodical-core/src/main/java/org/jwcarman/methodical/MethodValidator.java
-git commit -m "feat(core): add MethodValidator SPI"
-```
-
----
-
-## Task 2: Add `NoOpMethodValidator` (TDD)
-
-**Files:**
-- Test: `methodical-core/src/test/java/org/jwcarman/methodical/NoOpMethodValidatorTest.java`
-- Create: `methodical-core/src/main/java/org/jwcarman/methodical/NoOpMethodValidator.java`
-
-**Step 1: Write the failing test**
+### `NoOpMethodValidatorFactory.java` (after license header)
 
 ```java
 package org.jwcarman.methodical;
 
+import java.lang.reflect.Method;
+
+/** No-op {@link MethodValidatorFactory}; the default when validation is not configured. */
+public final class NoOpMethodValidatorFactory implements MethodValidatorFactory {
+
+  private static final MethodValidator NO_OP =
+      new MethodValidator() {
+        @Override
+        public void validateParameters(Object[] args) {
+          // intentionally empty
+        }
+
+        @Override
+        public void validateReturnValue(Object returnValue) {
+          // intentionally empty
+        }
+      };
+
+  @Override
+  public MethodValidator create(Object target, Method method) {
+    return NO_OP;
+  }
+}
+```
+
+### `NoOpMethodValidatorFactoryTest.java` (after license header)
+
+```java
+package org.jwcarman.methodical;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.lang.reflect.Method;
@@ -93,80 +132,61 @@ import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
-class NoOpMethodValidatorTest {
+class NoOpMethodValidatorFactoryTest {
 
   @Test
-  void validate_parameters_does_nothing() throws Exception {
-    MethodValidator v = new NoOpMethodValidator();
+  void created_validator_does_nothing_for_parameters() throws Exception {
     Method m = String.class.getMethod("length");
-    assertThatCode(() -> v.validateParameters("x", m, new Object[0])).doesNotThrowAnyException();
+    MethodValidator v = new NoOpMethodValidatorFactory().create("x", m);
+    assertThatCode(() -> v.validateParameters(new Object[0])).doesNotThrowAnyException();
   }
 
   @Test
-  void validate_return_value_does_nothing() throws Exception {
-    MethodValidator v = new NoOpMethodValidator();
+  void created_validator_does_nothing_for_return_value() throws Exception {
     Method m = String.class.getMethod("length");
-    assertThatCode(() -> v.validateReturnValue("x", m, 1)).doesNotThrowAnyException();
+    MethodValidator v = new NoOpMethodValidatorFactory().create("x", m);
+    assertThatCode(() -> v.validateReturnValue(1)).doesNotThrowAnyException();
   }
 
   @Test
   void accepts_null_target_for_static_methods() throws Exception {
-    MethodValidator v = new NoOpMethodValidator();
     Method m = Integer.class.getMethod("parseInt", String.class);
-    assertThatCode(() -> v.validateParameters(null, m, new Object[] {"1"}))
-        .doesNotThrowAnyException();
+    MethodValidator v = new NoOpMethodValidatorFactory().create(null, m);
+    assertThatCode(() -> v.validateParameters(new Object[] {"1"})).doesNotThrowAnyException();
+  }
+
+  @Test
+  void returns_singleton_validator_instance() throws Exception {
+    NoOpMethodValidatorFactory factory = new NoOpMethodValidatorFactory();
+    Method m1 = String.class.getMethod("length");
+    Method m2 = Integer.class.getMethod("parseInt", String.class);
+    assertThat(factory.create("x", m1)).isSameAs(factory.create(123, m2));
   }
 }
 ```
 
-**Step 2: Run, expect FAIL (class missing)**
+### Steps
 
-Run: `./mvnw -pl methodical-core test -Dtest=NoOpMethodValidatorTest -q`
-Expected: compilation error referencing `NoOpMethodValidator`
-
-**Step 3: Implement**
-
-```java
-package org.jwcarman.methodical;
-
-import java.lang.reflect.Method;
-
-/** No-op {@link MethodValidator}; the default when validation is not configured. */
-public final class NoOpMethodValidator implements MethodValidator {
-
-  @Override
-  public void validateParameters(Object target, Method method, Object[] args) {
-    // intentionally empty
-  }
-
-  @Override
-  public void validateReturnValue(Object target, Method method, Object returnValue) {
-    // intentionally empty
-  }
-}
-```
-
-**Step 4: Run, expect PASS**
-
-Run: `./mvnw -pl methodical-core test -Dtest=NoOpMethodValidatorTest -q`
-
-**Step 5: Commit**
-
-```bash
-git add methodical-core/src/main/java/org/jwcarman/methodical/NoOpMethodValidator.java \
-        methodical-core/src/test/java/org/jwcarman/methodical/NoOpMethodValidatorTest.java
-git commit -m "feat(core): add NoOpMethodValidator"
-```
+1. Delete: `methodical-core/src/main/java/org/jwcarman/methodical/NoOpMethodValidator.java` and `methodical-core/src/test/java/org/jwcarman/methodical/NoOpMethodValidatorTest.java`.
+2. Overwrite `MethodValidator.java` with the new bound-validator content above.
+3. Create `MethodValidatorFactory.java`.
+4. Create `NoOpMethodValidatorFactory.java` and `NoOpMethodValidatorFactoryTest.java`.
+5. `mvn -pl methodical-core test spotless:check -q` — green.
+6. Commit:
+   ```
+   git add -A methodical-core/src
+   git commit -m "refactor(core): switch MethodValidator SPI to factory shape"
+   ```
 
 ---
 
-## Task 3: Wire `MethodValidator` into `DefaultMethodInvoker` (TDD)
+## Task 3: Wire factory through `DefaultMethodInvoker` (TDD)
 
 **Files:**
 - Modify: `methodical-core/src/main/java/org/jwcarman/methodical/def/DefaultMethodInvoker.java`
 - Test: `methodical-core/src/test/java/org/jwcarman/methodical/def/DefaultMethodInvokerValidationTest.java`
 
-**Step 1: Write the failing test**
+### Step 1: Test (write first)
 
 ```java
 package org.jwcarman.methodical.def;
@@ -183,6 +203,7 @@ import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodValidator;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
+import org.jwcarman.specular.TypeRef;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class DefaultMethodInvokerValidationTest {
@@ -197,24 +218,25 @@ class DefaultMethodInvokerValidationTest {
   void validator_sees_parameters_then_return_value_in_order() throws Exception {
     Greeter target = new Greeter();
     Method method = Greeter.class.getDeclaredMethod("greet", String.class);
-    ParameterInfo info = ParameterInfo.of(method.getParameters()[0], 0,
-        org.jwcarman.specular.TypeRef.of(String.class));
+    ParameterInfo info =
+        ParameterInfo.of(method.getParameters()[0], 0, TypeRef.of(String.class));
     ParameterResolver<String> resolver = (pi, arg) -> arg;
     StringBuilder log = new StringBuilder();
-    MethodValidator validator = new MethodValidator() {
-      @Override
-      public void validateParameters(Object t, Method m, Object[] args) {
-        log.append("params:").append(args[0]).append(';');
-      }
-      @Override
-      public void validateReturnValue(Object t, Method m, Object returnValue) {
-        log.append("return:").append(returnValue).append(';');
-      }
-    };
+    MethodValidator validator =
+        new MethodValidator() {
+          @Override
+          public void validateParameters(Object[] args) {
+            log.append("params:").append(args[0]).append(';');
+          }
+          @Override
+          public void validateReturnValue(Object returnValue) {
+            log.append("return:").append(returnValue).append(';');
+          }
+        };
 
     MethodInvoker<String> invoker =
-        new DefaultMethodInvoker<>(method, target, new ParameterInfo[] {info},
-            List.of(resolver), validator);
+        new DefaultMethodInvoker<>(
+            method, target, new ParameterInfo[] {info}, List.of(resolver), validator);
 
     Object result = invoker.invoke("world");
 
@@ -226,24 +248,25 @@ class DefaultMethodInvokerValidationTest {
   void parameter_validation_failure_skips_invocation_and_return_validation() throws Exception {
     Greeter target = new Greeter();
     Method method = Greeter.class.getDeclaredMethod("greet", String.class);
-    ParameterInfo info = ParameterInfo.of(method.getParameters()[0], 0,
-        org.jwcarman.specular.TypeRef.of(String.class));
+    ParameterInfo info =
+        ParameterInfo.of(method.getParameters()[0], 0, TypeRef.of(String.class));
     ParameterResolver<String> resolver = (pi, arg) -> arg;
     boolean[] returnValidated = {false};
-    MethodValidator validator = new MethodValidator() {
-      @Override
-      public void validateParameters(Object t, Method m, Object[] args) {
-        throw new IllegalArgumentException("bad args");
-      }
-      @Override
-      public void validateReturnValue(Object t, Method m, Object returnValue) {
-        returnValidated[0] = true;
-      }
-    };
+    MethodValidator validator =
+        new MethodValidator() {
+          @Override
+          public void validateParameters(Object[] args) {
+            throw new IllegalArgumentException("bad args");
+          }
+          @Override
+          public void validateReturnValue(Object returnValue) {
+            returnValidated[0] = true;
+          }
+        };
 
     MethodInvoker<String> invoker =
-        new DefaultMethodInvoker<>(method, target, new ParameterInfo[] {info},
-            List.of(resolver), validator);
+        new DefaultMethodInvoker<>(
+            method, target, new ParameterInfo[] {info}, List.of(resolver), validator);
 
     assertThatThrownBy(() -> invoker.invoke("world"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -253,14 +276,9 @@ class DefaultMethodInvokerValidationTest {
 }
 ```
 
-**Step 2: Run, expect FAIL (constructor signature mismatch)**
+### Step 2: Modify `DefaultMethodInvoker`
 
-Run: `./mvnw -pl methodical-core test -Dtest=DefaultMethodInvokerValidationTest -q`
-Expected: compile error — `DefaultMethodInvoker` constructor doesn't accept a `MethodValidator`.
-
-**Step 3: Modify `DefaultMethodInvoker`**
-
-Replace the existing class body to add a `MethodValidator` field and call it around the reflective invoke. Full file content:
+Add a `MethodValidator validator` field. Change `invoke(...)` to call `validator.validateParameters(args)` after resolution and `validator.validateReturnValue(result)` after invocation. Full file:
 
 ```java
 package org.jwcarman.methodical.def;
@@ -298,7 +316,7 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   @Override
   public Object invoke(A argument) {
     Object[] args = resolveArguments(argument);
-    validator.validateParameters(target, method, args);
+    validator.validateParameters(args);
     Object result;
     try {
       result = method.invoke(target, args);
@@ -311,7 +329,7 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     } catch (IllegalAccessException e) {
       throw new MethodInvocationException("Method invocation failed: " + e.getMessage(), e);
     }
-    validator.validateReturnValue(target, method, result);
+    validator.validateReturnValue(result);
     return result;
   }
 
@@ -325,31 +343,22 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
 }
 ```
 
-**Step 4: Update `DefaultMethodInvokerFactory` to pass `NoOpMethodValidator` (temporary — Task 4 makes it injectable)**
+### Step 3: Update `DefaultMethodInvokerFactory`
 
-In `methodical-core/src/main/java/org/jwcarman/methodical/def/DefaultMethodInvokerFactory.java`, change line 59 from:
-
-```java
-return new DefaultMethodInvoker<>(method, target, paramInfos, assigned);
-```
-
-to:
+In `methodical-core/src/main/java/org/jwcarman/methodical/def/DefaultMethodInvokerFactory.java`, change line 59 (the `new DefaultMethodInvoker<>(...)` call) to pass a no-op validator:
 
 ```java
 return new DefaultMethodInvoker<>(
-    method, target, paramInfos, assigned, new NoOpMethodValidator());
+    method, target, paramInfos, assigned, new NoOpMethodValidatorFactory().create(target, method));
 ```
 
-Add the import: `import org.jwcarman.methodical.NoOpMethodValidator;`
+Add the import: `import org.jwcarman.methodical.NoOpMethodValidatorFactory;`. (Task 4 will inject the factory cleanly; this is a temporary intermediate.)
 
-**Step 5: Run new test + full core suite**
+### Step 4: Verify and commit
 
-Run: `./mvnw -pl methodical-core test -q`
-Expected: PASS
+`mvn -pl methodical-core test spotless:check -q` — green.
 
-**Step 6: Commit**
-
-```bash
+```
 git add methodical-core/src/main/java/org/jwcarman/methodical/def/DefaultMethodInvoker.java \
         methodical-core/src/main/java/org/jwcarman/methodical/def/DefaultMethodInvokerFactory.java \
         methodical-core/src/test/java/org/jwcarman/methodical/def/DefaultMethodInvokerValidationTest.java
@@ -358,13 +367,13 @@ git commit -m "feat(core): invoke MethodValidator around reflective call"
 
 ---
 
-## Task 4: Make `MethodValidator` injectable through `DefaultMethodInvokerFactory` (TDD)
+## Task 4: Inject `MethodValidatorFactory` through `DefaultMethodInvokerFactory` (TDD)
 
 **Files:**
 - Modify: `methodical-core/src/main/java/org/jwcarman/methodical/def/DefaultMethodInvokerFactory.java`
 - Test: `methodical-core/src/test/java/org/jwcarman/methodical/def/DefaultMethodInvokerFactoryValidationTest.java`
 
-**Step 1: Write the failing test**
+### Step 1: Test
 
 ```java
 package org.jwcarman.methodical.def;
@@ -379,6 +388,7 @@ import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodValidator;
+import org.jwcarman.methodical.MethodValidatorFactory;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class DefaultMethodInvokerFactoryValidationTest {
@@ -390,83 +400,91 @@ class DefaultMethodInvokerFactoryValidationTest {
   }
 
   @Test
-  void factory_threads_validator_into_created_invoker() throws Exception {
-    boolean[] called = {false};
-    MethodValidator v = new MethodValidator() {
-      @Override
-      public void validateParameters(Object t, Method m, Object[] args) {
-        called[0] = true;
-      }
-      @Override
-      public void validateReturnValue(Object t, Method m, Object r) {}
-    };
-    DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of(), v);
+  void factory_calls_validator_factory_once_at_invoker_creation() throws Exception {
+    int[] bindCalls = {0};
+    int[] validateCalls = {0};
+    MethodValidatorFactory vf =
+        (target, method) -> {
+          bindCalls[0]++;
+          return new MethodValidator() {
+            @Override
+            public void validateParameters(Object[] args) {
+              validateCalls[0]++;
+            }
+            @Override
+            public void validateReturnValue(Object returnValue) {}
+          };
+        };
+
+    DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of(), vf);
     Method m = Echo.class.getDeclaredMethod("echo", String.class);
     MethodInvoker<String> invoker = factory.create(m, new Echo(), String.class);
 
-    assertThat(invoker.invoke("hi")).isEqualTo("hi");
-    assertThat(called[0]).isTrue();
+    assertThat(bindCalls[0]).isEqualTo(1);
+    assertThat(validateCalls[0]).isZero();
+
+    invoker.invoke("a");
+    invoker.invoke("b");
+
+    assertThat(bindCalls[0]).isEqualTo(1);
+    assertThat(validateCalls[0]).isEqualTo(2);
   }
 
   @Test
-  void single_arg_constructor_uses_no_op_validator() throws Exception {
+  void single_arg_constructor_uses_no_op_factory() throws Exception {
     DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of());
     Method m = Echo.class.getDeclaredMethod("echo", String.class);
     MethodInvoker<String> invoker = factory.create(m, new Echo(), String.class);
-    // Behaves identically to the legacy code path; smoke test.
     assertThat(invoker.invoke("hi")).isEqualTo("hi");
   }
 
   @Test
-  void rejects_null_validator() {
+  void rejects_null_validator_factory() {
     assertThatThrownBy(() -> new DefaultMethodInvokerFactory(List.of(), null))
         .isInstanceOf(NullPointerException.class);
   }
 }
 ```
 
-**Step 2: Run, expect FAIL**
-
-Run: `./mvnw -pl methodical-core test -Dtest=DefaultMethodInvokerFactoryValidationTest -q`
-
-**Step 3: Modify factory**
-
-Add a `MethodValidator validator` field and a second constructor; the existing constructor delegates with `NoOpMethodValidator`. Update `create()` to pass it through.
+### Step 2: Modify factory
 
 ```java
 public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
 
   private final List<ResolvedParameterResolver<?>> resolvers;
-  private final MethodValidator validator;
+  private final MethodValidatorFactory validatorFactory;
 
   public DefaultMethodInvokerFactory(List<ParameterResolver<?>> resolvers) {
-    this(resolvers, new NoOpMethodValidator());
+    this(resolvers, new NoOpMethodValidatorFactory());
   }
 
   public DefaultMethodInvokerFactory(
-      List<ParameterResolver<?>> resolvers, MethodValidator validator) {
+      List<ParameterResolver<?>> resolvers, MethodValidatorFactory validatorFactory) {
     this.resolvers =
         resolvers.stream()
             .<ResolvedParameterResolver<?>>map(DefaultMethodInvokerFactory::wrap)
             .toList();
-    this.validator = Objects.requireNonNull(validator, "validator");
+    this.validatorFactory = Objects.requireNonNull(validatorFactory, "validatorFactory");
   }
 
-  // ... create() now passes `validator` instead of `new NoOpMethodValidator()`.
+  @Override
+  public <A> MethodInvoker<A> create(...) {
+    // ... existing argument-resolution logic ...
+    return new DefaultMethodInvoker<>(
+        method, target, paramInfos, assigned, validatorFactory.create(target, method));
+  }
 ```
 
-Add imports: `import java.util.Objects;`, `import org.jwcarman.methodical.MethodValidator;`. Keep the `NoOpMethodValidator` import.
+Replace the `NoOpMethodValidatorFactory` import + hard-coded call site from Task 3 with the field-based call. Keep all other imports.
 
-**Step 4: Run, expect PASS**
+### Step 3: Verify and commit
 
-Run: `./mvnw -pl methodical-core test -q`
+`mvn -pl methodical-core test spotless:check -q` — green.
 
-**Step 5: Commit**
-
-```bash
+```
 git add methodical-core/src/main/java/org/jwcarman/methodical/def/DefaultMethodInvokerFactory.java \
         methodical-core/src/test/java/org/jwcarman/methodical/def/DefaultMethodInvokerFactoryValidationTest.java
-git commit -m "feat(core): accept optional MethodValidator in DefaultMethodInvokerFactory"
+git commit -m "feat(core): accept optional MethodValidatorFactory in DefaultMethodInvokerFactory"
 ```
 
 ---
@@ -477,10 +495,10 @@ git commit -m "feat(core): accept optional MethodValidator in DefaultMethodInvok
 
 **Files:**
 - Create: `methodical-jakarta-validation/pom.xml`
-- Modify: `pom.xml` (root) — add module + dependency-management entry
-- Modify: `methodical-bom/pom.xml` — add the new artifact (if BOM lists modules; check first)
+- Modify: root `pom.xml` (add module + dependencyManagement entry)
+- Modify: `methodical-bom/pom.xml` if it enumerates artifacts (read first)
 
-**Step 1: Create module pom**
+### `methodical-jakarta-validation/pom.xml`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -523,11 +541,11 @@ git commit -m "feat(core): accept optional MethodValidator in DefaultMethodInvok
 </project>
 ```
 
-Add the LICENSE header comment block at the top (copy from `methodical-core/pom.xml`).
+Apache 2.0 XML license header at the top — copy from `methodical-core/pom.xml`.
 
-**Step 2: Add to root pom**
+### Root `pom.xml`
 
-In `/Users/jcarman/IdeaProjects/methodical/pom.xml`, add to `<modules>` (after `methodical-gson`):
+Add to `<modules>` (after `methodical-gson`):
 
 ```xml
 <module>methodical-jakarta-validation</module>
@@ -543,30 +561,20 @@ Add to `<dependencyManagement>`:
 </dependency>
 ```
 
-**Step 3: Add to BOM if present**
+### Verify and commit
 
-Read `methodical-bom/pom.xml` first. If it enumerates artifacts, add `methodical-jakarta-validation`.
+`mvn -pl methodical-jakarta-validation -am compile -q` — success.
 
-**Step 4: Verify build**
-
-Run: `./mvnw -pl methodical-jakarta-validation -am compile -q`
-Expected: success (Spring Boot parent manages `jakarta.validation-api` and `hibernate-validator` versions — no version needed in module pom)
-
-**Step 5: Commit**
-
-```bash
+```
 git add pom.xml methodical-bom/pom.xml methodical-jakarta-validation/pom.xml
 git commit -m "build: scaffold methodical-jakarta-validation module"
 ```
 
 ---
 
-## Task 6: Add `@MethodValidation` annotation
+## Task 6: `@MethodValidation` annotation
 
-**Files:**
-- Create: `methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/MethodValidation.java`
-
-**Step 1: Write the file**
+**File:** `methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/MethodValidation.java`
 
 ```java
 package org.jwcarman.methodical.jakarta;
@@ -593,38 +601,25 @@ public @interface MethodValidation {
 }
 ```
 
-**Step 2: Verify compile**
+Verify and commit:
 
-Run: `./mvnw -pl methodical-jakarta-validation compile -q`
-
-**Step 3: Commit**
-
-```bash
+```
+mvn -pl methodical-jakarta-validation compile spotless:check -q
 git add methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/MethodValidation.java
 git commit -m "feat(jakarta): add @MethodValidation annotation"
 ```
 
 ---
 
-## Task 7: Add `AnnotationFinder` helper (TDD)
+## Task 7: `AnnotationFinder` helper (TDD)
 
-This helper walks the class/interface hierarchy and resolves bridge methods to their bridged target. It is package-private — internal to the Jakarta module.
+Package-private helper that walks the class/interface hierarchy and resolves bridge methods.
 
 **Files:**
 - Test: `methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/AnnotationFinderTest.java`
 - Create: `methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/AnnotationFinder.java`
 
-**Step 1: Write the failing test**
-
-Cover:
-- annotation directly on method → found
-- annotation on overridden method in superclass → found
-- annotation on method in implemented interface → found
-- annotation on neither → null
-- bridge method delegates to the real method's annotation
-- class-level: annotation on the declaring class → found
-- class-level: annotation on superclass → found
-- class-level: annotation on interface → found
+### Test
 
 ```java
 package org.jwcarman.methodical.jakarta;
@@ -666,6 +661,16 @@ class AnnotationFinderTest {
     public void hello() {}
   }
 
+  interface OnlyIface {
+    @Marker("only-iface")
+    void run();
+  }
+
+  static class OnlyIfaceImpl implements OnlyIface {
+    @Override
+    public void run() {}
+  }
+
   @Marker("annotated-class")
   static class AnnotatedOnly {
     public void hello() {}
@@ -685,14 +690,7 @@ class AnnotationFinderTest {
 
   @Test
   void method_annotation_found_on_interface() throws Exception {
-    interface OnlyIface {
-      @Marker("only-iface")
-      void run();
-    }
-    class Impl implements OnlyIface {
-      @Override public void run() {}
-    }
-    Method m = Impl.class.getMethod("run");
+    Method m = OnlyIfaceImpl.class.getMethod("run");
     Marker found = AnnotationFinder.findOnMethod(m, Marker.class);
     assertThat(found).isNotNull();
     assertThat(found.value()).isEqualTo("only-iface");
@@ -725,17 +723,15 @@ class AnnotationFinderTest {
 }
 ```
 
-**Step 2: Run, expect FAIL**
-
-Run: `./mvnw -pl methodical-jakarta-validation test -Dtest=AnnotationFinderTest -q`
-
-**Step 3: Implement**
+### Implementation
 
 ```java
 package org.jwcarman.methodical.jakarta;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 final class AnnotationFinder {
 
@@ -793,8 +789,8 @@ final class AnnotationFinder {
     }
   }
 
-  private static java.util.Set<Class<?>> allInterfaces(Class<?> type) {
-    java.util.Set<Class<?>> out = new java.util.LinkedHashSet<>();
+  private static Set<Class<?>> allInterfaces(Class<?> type) {
+    Set<Class<?>> out = new LinkedHashSet<>();
     Class<?> current = type;
     while (current != null && current != Object.class) {
       collectInterfaces(current, out);
@@ -803,7 +799,7 @@ final class AnnotationFinder {
     return out;
   }
 
-  private static void collectInterfaces(Class<?> type, java.util.Set<Class<?>> sink) {
+  private static void collectInterfaces(Class<?> type, Set<Class<?>> sink) {
     for (Class<?> iface : type.getInterfaces()) {
       if (sink.add(iface)) {
         collectInterfaces(iface, sink);
@@ -811,8 +807,6 @@ final class AnnotationFinder {
     }
   }
 
-  // Bridge methods: walk to the same-name, same-arity method whose erased parameter types match
-  // and which is itself non-bridge.
   private static Method resolveBridged(Method bridge) {
     Class<?> declaring = bridge.getDeclaringClass();
     for (Method candidate : declaring.getDeclaredMethods()) {
@@ -827,13 +821,10 @@ final class AnnotationFinder {
 }
 ```
 
-**Step 4: Run, expect PASS**
+Verify and commit:
 
-Run: `./mvnw -pl methodical-jakarta-validation test -Dtest=AnnotationFinderTest -q`
-
-**Step 5: Commit**
-
-```bash
+```
+mvn -pl methodical-jakarta-validation test spotless:check -q
 git add methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/AnnotationFinder.java \
         methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/AnnotationFinderTest.java
 git commit -m "feat(jakarta): add AnnotationFinder helper for hierarchy walks"
@@ -841,14 +832,14 @@ git commit -m "feat(jakarta): add AnnotationFinder helper for hierarchy walks"
 
 ---
 
-## Task 8: Add `ValidationGroupResolver` interface + default impl (TDD)
+## Task 8: `ValidationGroupResolver` interface + default impl (TDD)
 
 **Files:**
 - Create: `methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/ValidationGroupResolver.java`
 - Create: `methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/DefaultValidationGroupResolver.java`
 - Test: `methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/DefaultValidationGroupResolverTest.java`
 
-**Step 1: Write interface**
+### Interface
 
 ```java
 package org.jwcarman.methodical.jakarta;
@@ -863,7 +854,7 @@ public interface ValidationGroupResolver {
 }
 ```
 
-**Step 2: Write the failing test for default impl**
+### Test (cover precedence: method-annotation > class-annotation > constructor-default)
 
 ```java
 package org.jwcarman.methodical.jakarta;
@@ -890,8 +881,14 @@ class DefaultValidationGroupResolverTest {
   @MethodValidation(groups = GroupA.class)
   static class ClassAnnotated {
     public void run() {}
+
     @MethodValidation(groups = GroupB.class, validateReturnValue = false)
     public void other() {}
+  }
+
+  @MethodValidation
+  static class EmptyGroups {
+    public void run() {}
   }
 
   @Test
@@ -923,10 +920,6 @@ class DefaultValidationGroupResolverTest {
 
   @Test
   void empty_groups_on_annotation_normalize_to_constructor_default() throws Exception {
-    @MethodValidation
-    class EmptyGroups {
-      public void run() {}
-    }
     DefaultValidationGroupResolver r =
         new DefaultValidationGroupResolver(new Class<?>[] {GroupA.class}, true);
     Method m = EmptyGroups.class.getMethod("run");
@@ -951,11 +944,7 @@ class DefaultValidationGroupResolverTest {
 }
 ```
 
-**Step 3: Run, expect FAIL**
-
-Run: `./mvnw -pl methodical-jakarta-validation test -Dtest=DefaultValidationGroupResolverTest -q`
-
-**Step 4: Implement default resolver**
+### Default impl
 
 ```java
 package org.jwcarman.methodical.jakarta;
@@ -1003,13 +992,10 @@ public final class DefaultValidationGroupResolver implements ValidationGroupReso
 }
 ```
 
-**Step 5: Run, expect PASS**
+Verify and commit:
 
-Run: `./mvnw -pl methodical-jakarta-validation test -Dtest=DefaultValidationGroupResolverTest -q`
-
-**Step 6: Commit**
-
-```bash
+```
+mvn -pl methodical-jakarta-validation test spotless:check -q
 git add methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/ValidationGroupResolver.java \
         methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/DefaultValidationGroupResolver.java \
         methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/DefaultValidationGroupResolverTest.java
@@ -1018,19 +1004,111 @@ git commit -m "feat(jakarta): add ValidationGroupResolver with hierarchy-aware d
 
 ---
 
-## Task 9: Add `JakartaMethodValidator` (TDD with Hibernate Validator)
+## Task 9: `JakartaMethodValidator` + `JakartaMethodValidatorFactory` (TDD)
+
+The factory does the resolution once at bind time and returns a bound validator with pre-resolved groups. For static methods or null targets, it returns a singleton no-op (Jakarta's `ExecutableValidator` requires a non-null instance).
 
 **Files:**
-- Create: `methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/JakartaMethodValidator.java`
-- Test: `methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/JakartaMethodValidatorTest.java`
+- Create: `methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/JakartaMethodValidatorFactory.java`
+- Test: `methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/JakartaMethodValidatorFactoryTest.java`
 
-**Step 1: Write the failing test**
-
-Cover: param violation throws `ConstraintViolationException`; valid call passes; return-value violation throws; `@MethodValidation(validateReturnValue=false)` skips return validation; static method skipped without throwing; null target on instance method skipped without throwing (defensive — Jakarta would throw `IllegalArgumentException`).
+### Implementation
 
 ```java
 package org.jwcarman.methodical.jakarta;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Validator;
+import jakarta.validation.executable.ExecutableValidator;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Objects;
+import java.util.Set;
+import org.jwcarman.methodical.MethodValidator;
+import org.jwcarman.methodical.MethodValidatorFactory;
+
+public final class JakartaMethodValidatorFactory implements MethodValidatorFactory {
+
+  private static final MethodValidator NO_OP =
+      new MethodValidator() {
+        @Override
+        public void validateParameters(Object[] args) {}
+        @Override
+        public void validateReturnValue(Object returnValue) {}
+      };
+
+  private final ExecutableValidator executableValidator;
+  private final ValidationGroupResolver groupResolver;
+
+  public JakartaMethodValidatorFactory(Validator validator, ValidationGroupResolver groupResolver) {
+    this.executableValidator =
+        Objects.requireNonNull(validator, "validator").forExecutables();
+    this.groupResolver = Objects.requireNonNull(groupResolver, "groupResolver");
+  }
+
+  @Override
+  public MethodValidator create(Object target, Method method) {
+    if (target == null || Modifier.isStatic(method.getModifiers())) {
+      return NO_OP;
+    }
+    Class<?>[] groups = groupResolver.resolveGroups(target, method);
+    boolean validateReturn = groupResolver.shouldValidateReturnValue(target, method);
+    return new BoundJakartaValidator(executableValidator, target, method, groups, validateReturn);
+  }
+
+  private static final class BoundJakartaValidator implements MethodValidator {
+    private final ExecutableValidator executableValidator;
+    private final Object target;
+    private final Method method;
+    private final Class<?>[] groups;
+    private final boolean validateReturn;
+
+    BoundJakartaValidator(
+        ExecutableValidator executableValidator,
+        Object target,
+        Method method,
+        Class<?>[] groups,
+        boolean validateReturn) {
+      this.executableValidator = executableValidator;
+      this.target = target;
+      this.method = method;
+      this.groups = groups;
+      this.validateReturn = validateReturn;
+    }
+
+    @Override
+    public void validateParameters(Object[] args) {
+      Set<ConstraintViolation<Object>> violations =
+          executableValidator.validateParameters(target, method, args, groups);
+      if (!violations.isEmpty()) {
+        throw new ConstraintViolationException(violations);
+      }
+    }
+
+    @Override
+    public void validateReturnValue(Object returnValue) {
+      if (!validateReturn) {
+        return;
+      }
+      Set<ConstraintViolation<Object>> violations =
+          executableValidator.validateReturnValue(target, method, returnValue, groups);
+      if (!violations.isEmpty()) {
+        throw new ConstraintViolationException(violations);
+      }
+    }
+  }
+}
+```
+
+### Test
+
+Cover: param violation throws; valid call passes; return violation throws; `@MethodValidation(validateReturnValue=false)` skips; static methods return the no-op singleton; null target returns the no-op singleton; **resolver invoked exactly once at `create(...)` time, not on each invocation**.
+
+```java
+package org.jwcarman.methodical.jakarta;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -1047,7 +1125,7 @@ import org.junit.jupiter.api.Test;
 import org.jwcarman.methodical.MethodValidator;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
-class JakartaMethodValidatorTest {
+class JakartaMethodValidatorFactoryTest {
 
   static class Service {
     @NotBlank
@@ -1071,206 +1149,113 @@ class JakartaMethodValidatorTest {
     }
   }
 
-  private Validator newValidator() {
+  private Validator validator() {
     return Validation.buildDefaultValidatorFactory().getValidator();
   }
 
-  private MethodValidator newMethodValidator() {
-    return new JakartaMethodValidator(
-        newValidator(),
-        new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true));
+  private JakartaMethodValidatorFactory newFactory() {
+    return new JakartaMethodValidatorFactory(
+        validator(), new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true));
   }
 
   @Test
   void valid_parameters_pass() throws Exception {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
-    assertThatCode(() -> newMethodValidator().validateParameters(new Service(), m, new Object[] {"world"}))
-        .doesNotThrowAnyException();
+    MethodValidator v = newFactory().create(new Service(), m);
+    assertThatCode(() -> v.validateParameters(new Object[] {"world"})).doesNotThrowAnyException();
   }
 
   @Test
   void invalid_parameters_throw_ConstraintViolationException() throws Exception {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
-    assertThatThrownBy(() -> newMethodValidator().validateParameters(new Service(), m, new Object[] {""}))
+    MethodValidator v = newFactory().create(new Service(), m);
+    assertThatThrownBy(() -> v.validateParameters(new Object[] {""}))
         .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test
   void valid_return_value_passes() throws Exception {
     Method m = Service.class.getDeclaredMethod("maybe", boolean.class);
-    assertThatCode(() -> newMethodValidator().validateReturnValue(new Service(), m, "value"))
-        .doesNotThrowAnyException();
+    MethodValidator v = newFactory().create(new Service(), m);
+    assertThatCode(() -> v.validateReturnValue("value")).doesNotThrowAnyException();
   }
 
   @Test
   void invalid_return_value_throws_ConstraintViolationException() throws Exception {
     Method m = Service.class.getDeclaredMethod("maybe", boolean.class);
-    assertThatThrownBy(() -> newMethodValidator().validateReturnValue(new Service(), m, null))
+    MethodValidator v = newFactory().create(new Service(), m);
+    assertThatThrownBy(() -> v.validateReturnValue(null))
         .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test
   void return_validation_skipped_when_annotation_disables_it() throws Exception {
     Method m = Service.class.getDeclaredMethod("maybeNoReturnCheck", boolean.class);
-    assertThatCode(() -> newMethodValidator().validateReturnValue(new Service(), m, null))
-        .doesNotThrowAnyException();
+    MethodValidator v = newFactory().create(new Service(), m);
+    assertThatCode(() -> v.validateReturnValue(null)).doesNotThrowAnyException();
   }
 
   @Test
-  void static_methods_are_skipped() throws Exception {
+  void static_methods_return_no_op() throws Exception {
     Method m = Service.class.getDeclaredMethod("staticMethod", String.class);
-    assertThatCode(() -> newMethodValidator().validateParameters(null, m, new Object[] {""}))
-        .doesNotThrowAnyException();
-    assertThatCode(() -> newMethodValidator().validateReturnValue(null, m, ""))
-        .doesNotThrowAnyException();
+    MethodValidator v = newFactory().create(null, m);
+    assertThatCode(() -> v.validateParameters(new Object[] {""})).doesNotThrowAnyException();
+    assertThatCode(() -> v.validateReturnValue("")).doesNotThrowAnyException();
   }
 
   @Test
-  void null_target_on_instance_method_is_skipped() throws Exception {
+  void null_target_returns_no_op() throws Exception {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
-    assertThatCode(() -> newMethodValidator().validateParameters(null, m, new Object[] {""}))
-        .doesNotThrowAnyException();
+    MethodValidator v = newFactory().create(null, m);
+    assertThatCode(() -> v.validateParameters(new Object[] {""})).doesNotThrowAnyException();
+  }
+
+  @Test
+  void resolver_invoked_once_at_bind_time_not_per_call() throws Exception {
+    int[] calls = {0};
+    ValidationGroupResolver counting =
+        new ValidationGroupResolver() {
+          @Override
+          public Class<?>[] resolveGroups(Object target, Method method) {
+            calls[0]++;
+            return new Class<?>[] {Default.class};
+          }
+          @Override
+          public boolean shouldValidateReturnValue(Object target, Method method) {
+            return true;
+          }
+        };
+    JakartaMethodValidatorFactory factory =
+        new JakartaMethodValidatorFactory(validator(), counting);
+    Method m = Service.class.getDeclaredMethod("greet", String.class);
+    Service target = new Service();
+
+    MethodValidator v = factory.create(target, m);
+    int afterCreate = calls[0];
+    v.validateParameters(new Object[] {"a"});
+    v.validateParameters(new Object[] {"b"});
+    v.validateReturnValue("x");
+
+    assertThat(afterCreate).isGreaterThanOrEqualTo(1);
+    assertThat(calls[0]).isEqualTo(afterCreate);
   }
 }
 ```
 
-**Step 2: Run, expect FAIL**
+Verify and commit:
 
-Run: `./mvnw -pl methodical-jakarta-validation test -Dtest=JakartaMethodValidatorTest -q`
-
-**Step 3: Implement**
-
-`ValidationGroupResolver`'s output is a pure function of `(target.getClass(), method)`. Walking the class/interface hierarchy on every invocation would be wasteful, so cache the resolution per `(class, method)` pair. The cache is an internal optimization — SPI unchanged.
-
-```java
-package org.jwcarman.methodical.jakarta;
-
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import jakarta.validation.Validator;
-import jakarta.validation.executable.ExecutableValidator;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import org.jwcarman.methodical.MethodValidator;
-
-public final class JakartaMethodValidator implements MethodValidator {
-
-  private final ExecutableValidator executableValidator;
-  private final ValidationGroupResolver groupResolver;
-  private final ConcurrentMap<CacheKey, ResolvedConfig> configCache = new ConcurrentHashMap<>();
-
-  public JakartaMethodValidator(Validator validator, ValidationGroupResolver groupResolver) {
-    this.executableValidator =
-        Objects.requireNonNull(validator, "validator").forExecutables();
-    this.groupResolver = Objects.requireNonNull(groupResolver, "groupResolver");
-  }
-
-  @Override
-  public void validateParameters(Object target, Method method, Object[] args) {
-    if (cannotValidate(target, method)) {
-      return;
-    }
-    ResolvedConfig config = configFor(target, method);
-    Set<ConstraintViolation<Object>> violations =
-        executableValidator.validateParameters(target, method, args, config.groups());
-    if (!violations.isEmpty()) {
-      throw new ConstraintViolationException(violations);
-    }
-  }
-
-  @Override
-  public void validateReturnValue(Object target, Method method, Object returnValue) {
-    if (cannotValidate(target, method)) {
-      return;
-    }
-    ResolvedConfig config = configFor(target, method);
-    if (!config.validateReturnValue()) {
-      return;
-    }
-    Set<ConstraintViolation<Object>> violations =
-        executableValidator.validateReturnValue(target, method, returnValue, config.groups());
-    if (!violations.isEmpty()) {
-      throw new ConstraintViolationException(violations);
-    }
-  }
-
-  // Jakarta's ExecutableValidator requires a non-null instance and does not handle static methods.
-  // Skip silently in both cases — the alternative is throwing, which would surprise users
-  // whose Methodical setup happens to include a static method.
-  private boolean cannotValidate(Object target, Method method) {
-    return target == null || Modifier.isStatic(method.getModifiers());
-  }
-
-  private ResolvedConfig configFor(Object target, Method method) {
-    CacheKey key = new CacheKey(target.getClass(), method);
-    return configCache.computeIfAbsent(
-        key,
-        k ->
-            new ResolvedConfig(
-                groupResolver.resolveGroups(target, method),
-                groupResolver.shouldValidateReturnValue(target, method)));
-  }
-
-  private record CacheKey(Class<?> targetClass, Method method) {}
-
-  private record ResolvedConfig(Class<?>[] groups, boolean validateReturnValue) {}
-}
 ```
-
-Add a test verifying the cache is populated lazily and the resolver is consulted only once per `(class, method)` pair:
-
-```java
-@Test
-void resolver_is_invoked_once_per_class_method_pair() throws Exception {
-  jakarta.validation.Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-  int[] callCount = {0};
-  ValidationGroupResolver counting = new ValidationGroupResolver() {
-    @Override
-    public Class<?>[] resolveGroups(Object target, Method method) {
-      callCount[0]++;
-      return new Class<?>[] {Default.class};
-    }
-    @Override
-    public boolean shouldValidateReturnValue(Object target, Method method) {
-      return true;
-    }
-  };
-  JakartaMethodValidator v = new JakartaMethodValidator(validator, counting);
-  Method m = Service.class.getDeclaredMethod("greet", String.class);
-  Service target = new Service();
-  v.validateParameters(target, m, new Object[] {"a"});
-  v.validateParameters(target, m, new Object[] {"b"});
-  v.validateReturnValue(target, m, "x");
-  assertThat(callCount[0]).isEqualTo(1);
-}
-```
-
-**Step 4: Run, expect PASS**
-
-Run: `./mvnw -pl methodical-jakarta-validation test -q`
-
-**Step 5: Commit**
-
-```bash
-git add methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/JakartaMethodValidator.java \
-        methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/JakartaMethodValidatorTest.java
-git commit -m "feat(jakarta): add JakartaMethodValidator backed by ExecutableValidator"
+mvn -pl methodical-jakarta-validation test spotless:check -q
+git add methodical-jakarta-validation/src/main/java/org/jwcarman/methodical/jakarta/JakartaMethodValidatorFactory.java \
+        methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/JakartaMethodValidatorFactoryTest.java
+git commit -m "feat(jakarta): add JakartaMethodValidatorFactory backed by ExecutableValidator"
 ```
 
 ---
 
-## Task 10: End-to-end integration test (Jakarta validator wired through factory)
+## Task 10: End-to-end integration test
 
-**Files:**
-- Test: `methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/JakartaValidationIntegrationTest.java`
-
-**Step 1: Write the test**
-
-Wire `DefaultMethodInvokerFactory` with `JakartaMethodValidator` and exercise a real `MethodInvoker`. Verify the violation surfaces from `MethodInvoker.invoke(...)`.
+**File:** `methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/JakartaValidationIntegrationTest.java`
 
 ```java
 package org.jwcarman.methodical.jakarta;
@@ -1301,12 +1286,11 @@ class JakartaValidationIntegrationTest {
   }
 
   private MethodInvoker<String> buildInvoker() throws Exception {
-    JakartaMethodValidator validator =
-        new JakartaMethodValidator(
+    JakartaMethodValidatorFactory vf =
+        new JakartaMethodValidatorFactory(
             Validation.buildDefaultValidatorFactory().getValidator(),
             new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true));
-    DefaultMethodInvokerFactory factory =
-        new DefaultMethodInvokerFactory(List.of(), validator);
+    DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of(), vf);
     Method m = Greeter.class.getDeclaredMethod("greet", String.class);
     return factory.create(m, new Greeter(), String.class);
   }
@@ -1325,52 +1309,35 @@ class JakartaValidationIntegrationTest {
 }
 ```
 
-**Step 2: Run**
+Verify and commit:
 
-Run: `./mvnw -pl methodical-jakarta-validation test -Dtest=JakartaValidationIntegrationTest -q`
-Expected: PASS
-
-**Step 3: Commit**
-
-```bash
+```
+mvn -pl methodical-jakarta-validation test -Dtest=JakartaValidationIntegrationTest -q
 git add methodical-jakarta-validation/src/test/java/org/jwcarman/methodical/jakarta/JakartaValidationIntegrationTest.java
 git commit -m "test(jakarta): end-to-end invocation through DefaultMethodInvokerFactory"
 ```
 
 ---
 
-## Task 11: Final verification
+## Task 11: Final verification + CHANGELOG
 
-**Step 1: Full build**
-
-Run: `./mvnw clean verify -q`
-Expected: all modules build and test successfully. License/spotless checks pass.
-
-**Step 2: Sonar (if needed)**
-
-If new Sonar findings appear after CI runs, address them per the project's standard workflow.
-
-**Step 3: Update CHANGELOG**
-
-Add an entry under `## [Unreleased]` in `CHANGELOG.md`:
-
-```markdown
-### Added
-- New `MethodValidator` SPI in `methodical-core` for validating reflective method invocations; defaults to a no-op.
-- New `methodical-jakarta-validation` module providing Jakarta Bean Validation integration via `JakartaMethodValidator`, `@MethodValidation` annotation, and `ValidationGroupResolver`.
-```
-
-**Step 4: Commit**
-
-```bash
-git add CHANGELOG.md
-git commit -m "docs: changelog for executable validation"
-```
+1. Full build: `mvn clean verify -q`. All modules green.
+2. Add to `CHANGELOG.md` under `## [Unreleased]`:
+   ```markdown
+   ### Added
+   - New `MethodValidatorFactory`/`MethodValidator` SPI in `methodical-core` for validating reflective method invocations; defaults to a no-op factory.
+   - New `methodical-jakarta-validation` module providing Jakarta Bean Validation integration via `JakartaMethodValidatorFactory`, `@MethodValidation` annotation, and `ValidationGroupResolver`.
+   ```
+3. Commit:
+   ```
+   git add CHANGELOG.md
+   git commit -m "docs: changelog for executable validation"
+   ```
 
 ---
 
 ## Open follow-ups (not in this plan)
 
-- Spring Boot autoconfiguration in `methodical-autoconfigure`: conditionally register `JakartaMethodValidator` when both `jakarta.validation.Validator` and `methodical-jakarta-validation` are on the classpath. Add `methodical.validation.enabled` and `methodical.validation.validate-return-value` properties.
+- Spring Boot autoconfiguration in `methodical-autoconfigure`: conditionally register `JakartaMethodValidatorFactory` when both `jakarta.validation.Validator` and `methodical-jakarta-validation` are on the classpath.
 - README documentation for the new module.
-- Native-image hints for reflection on `@MethodValidation`-annotated methods/classes if `methodical-jakarta-validation` is used with GraalVM native-image (likely a `RuntimeHints` registrar).
+- Native-image hints for reflection on `@MethodValidation`-annotated methods/classes.
