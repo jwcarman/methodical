@@ -38,7 +38,7 @@ class DefaultValidationGroupResolverTest {
   static class ClassAnnotated {
     public void run() {}
 
-    @MethodValidation(groups = GroupB.class, validateReturnValue = false)
+    @MethodValidation(groups = GroupB.class)
     public void other() {}
   }
 
@@ -50,50 +50,39 @@ class DefaultValidationGroupResolverTest {
   @Test
   void uses_constructor_default_when_nothing_annotated() throws Exception {
     DefaultValidationGroupResolver r =
-        new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true);
+        new DefaultValidationGroupResolver(new Class<?>[] {Default.class});
     Method m = Plain.class.getMethod("run");
     assertThat(r.resolveGroups(new Plain(), m)).containsExactly(Default.class);
-    assertThat(r.shouldValidateReturnValue(new Plain(), m)).isTrue();
   }
 
   @Test
   void class_annotation_overrides_constructor_default() throws Exception {
     DefaultValidationGroupResolver r =
-        new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true);
+        new DefaultValidationGroupResolver(new Class<?>[] {Default.class});
     Method m = ClassAnnotated.class.getMethod("run");
     assertThat(r.resolveGroups(new ClassAnnotated(), m)).containsExactly(GroupA.class);
-    assertThat(r.shouldValidateReturnValue(new ClassAnnotated(), m)).isTrue();
   }
 
   @Test
   void method_annotation_overrides_class_annotation() throws Exception {
     DefaultValidationGroupResolver r =
-        new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true);
+        new DefaultValidationGroupResolver(new Class<?>[] {Default.class});
     Method m = ClassAnnotated.class.getMethod("other");
     assertThat(r.resolveGroups(new ClassAnnotated(), m)).containsExactly(GroupB.class);
-    assertThat(r.shouldValidateReturnValue(new ClassAnnotated(), m)).isFalse();
   }
 
   @Test
   void empty_groups_on_annotation_normalize_to_constructor_default() throws Exception {
     DefaultValidationGroupResolver r =
-        new DefaultValidationGroupResolver(new Class<?>[] {GroupA.class}, true);
+        new DefaultValidationGroupResolver(new Class<?>[] {GroupA.class});
     Method m = EmptyGroups.class.getMethod("run");
     assertThat(r.resolveGroups(new EmptyGroups(), m)).containsExactly(GroupA.class);
   }
 
   @Test
-  void constructor_default_for_return_value_used_when_no_annotation() throws Exception {
-    DefaultValidationGroupResolver r =
-        new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, false);
-    Method m = Plain.class.getMethod("run");
-    assertThat(r.shouldValidateReturnValue(new Plain(), m)).isFalse();
-  }
-
-  @Test
   void null_target_uses_method_declaring_class_for_class_annotation() throws Exception {
     DefaultValidationGroupResolver r =
-        new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true);
+        new DefaultValidationGroupResolver(new Class<?>[] {Default.class});
     Method m = ClassAnnotated.class.getMethod("run");
     assertThat(r.resolveGroups(null, m)).containsExactly(GroupA.class);
   }

@@ -26,8 +26,10 @@ import org.jwcarman.methodical.MethodValidator;
 /**
  * Bound Jakarta Bean Validation {@link MethodValidator} for a single {@code (target, method)} pair.
  *
- * <p>Captures the validation groups and return-value flag at construction so the per-invocation
- * path is just an {@link ExecutableValidator} dispatch.
+ * <p>Captures the validation groups at construction so the per-invocation path is just an {@link
+ * ExecutableValidator} dispatch. Both parameter and return-value validation always run; methods
+ * whose return type carries no constraint annotations cost nothing (Jakarta returns an empty
+ * violation set).
  */
 public final class JakartaMethodValidator implements MethodValidator {
 
@@ -35,19 +37,13 @@ public final class JakartaMethodValidator implements MethodValidator {
   private final Object target;
   private final Method method;
   private final Class<?>[] groups;
-  private final boolean validateReturnValue;
 
   public JakartaMethodValidator(
-      ExecutableValidator executableValidator,
-      Object target,
-      Method method,
-      Class<?>[] groups,
-      boolean validateReturnValue) {
+      ExecutableValidator executableValidator, Object target, Method method, Class<?>[] groups) {
     this.executableValidator = Objects.requireNonNull(executableValidator, "executableValidator");
     this.target = Objects.requireNonNull(target, "target");
     this.method = Objects.requireNonNull(method, "method");
     this.groups = Objects.requireNonNull(groups, "groups").clone();
-    this.validateReturnValue = validateReturnValue;
   }
 
   @Override
@@ -61,9 +57,6 @@ public final class JakartaMethodValidator implements MethodValidator {
 
   @Override
   public void validateReturnValue(Object returnValue) {
-    if (!validateReturnValue) {
-      return;
-    }
     Set<ConstraintViolation<Object>> violations =
         executableValidator.validateReturnValue(target, method, returnValue, groups);
     if (!violations.isEmpty()) {

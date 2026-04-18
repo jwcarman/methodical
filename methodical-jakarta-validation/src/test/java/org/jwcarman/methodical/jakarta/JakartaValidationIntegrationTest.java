@@ -44,7 +44,7 @@ class JakartaValidationIntegrationTest {
     JakartaMethodValidatorFactory vf =
         new JakartaMethodValidatorFactory(
             Validation.buildDefaultValidatorFactory().getValidator(),
-            new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true));
+            new DefaultValidationGroupResolver(new Class<?>[] {Default.class}));
     DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of(), vf);
     Method m = Greeter.class.getDeclaredMethod("greet", String.class);
     return factory.create(m, new Greeter(), String.class);

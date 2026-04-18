@@ -31,6 +31,4 @@ import java.lang.annotation.Target;
 public @interface MethodValidation {
 
   Class<?>[] groups() default {};
-
-  boolean validateReturnValue() default true;
 }

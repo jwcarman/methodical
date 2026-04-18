@@ -36,7 +36,7 @@ public class JakartaValidationAutoConfiguration {
   @Bean
   @ConditionalOnMissingBean
   public DefaultValidationGroupResolver methodicalValidationGroupResolver() {
-    return new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true);
+    return new DefaultValidationGroupResolver(new Class<?>[] {Default.class});
   }
 
   @Bean

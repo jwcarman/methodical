@@ -45,12 +45,6 @@ class JakartaMethodValidatorFactoryTest {
       return ok ? "value" : null;
     }
 
-    @MethodValidation(validateReturnValue = false)
-    @NotNull
-    public String maybeNoReturnCheck(boolean ok) {
-      return ok ? "value" : null;
-    }
-
     public static String staticMethod(@NotBlank String s) {
       return s;
     }
@@ -62,7 +56,7 @@ class JakartaMethodValidatorFactoryTest {
 
   private JakartaMethodValidatorFactory newFactory() {
     return new JakartaMethodValidatorFactory(
-        validator(), new DefaultValidationGroupResolver(new Class<?>[] {Default.class}, true));
+        validator(), new DefaultValidationGroupResolver(new Class<?>[] {Default.class}));
   }
 
   @Test
@@ -96,13 +90,6 @@ class JakartaMethodValidatorFactoryTest {
   }
 
   @Test
-  void return_validation_skipped_when_annotation_disables_it() throws Exception {
-    Method m = Service.class.getDeclaredMethod("maybeNoReturnCheck", boolean.class);
-    MethodValidator v = newFactory().create(new Service(), m);
-    assertThatCode(() -> v.validateReturnValue(null)).doesNotThrowAnyException();
-  }
-
-  @Test
   void static_methods_return_no_op() throws Exception {
     Method m = Service.class.getDeclaredMethod("staticMethod", String.class);
     MethodValidator v = newFactory().create(null, m);
@@ -119,21 +106,11 @@ class JakartaMethodValidatorFactoryTest {
 
   @Test
   void resolver_invoked_at_bind_time_not_per_call() throws Exception {
-    int[] groupCalls = {0};
-    int[] flagCalls = {0};
+    int[] calls = {0};
     ValidationGroupResolver counting =
-        new ValidationGroupResolver() {
-          @Override
-          public Class<?>[] resolveGroups(Object target, Method method) {
-            groupCalls[0]++;
-            return new Class<?>[] {Default.class};
-          }
-
-          @Override
-          public boolean shouldValidateReturnValue(Object target, Method method) {
-            flagCalls[0]++;
-            return true;
-          }
+        (target, method) -> {
+          calls[0]++;
+          return new Class<?>[] {Default.class};
         };
     JakartaMethodValidatorFactory factory =
         new JakartaMethodValidatorFactory(validator(), counting);
@@ -142,15 +119,13 @@ class JakartaMethodValidatorFactoryTest {
 
     MethodValidator v = factory.create(target, m);
 
-    assertThat(groupCalls[0]).isEqualTo(1);
-    assertThat(flagCalls[0]).isEqualTo(1);
+    assertThat(calls[0]).isEqualTo(1);
 
     v.validateParameters(new Object[] {"a"});
     v.validateParameters(new Object[] {"b"});
     v.validateReturnValue("x");
     v.validateReturnValue("y");
 
-    assertThat(groupCalls[0]).isEqualTo(1);
-    assertThat(flagCalls[0]).isEqualTo(1);
+    assertThat(calls[0]).isEqualTo(1);
   }
 }

@@ -21,12 +21,9 @@ import java.util.Objects;
 public final class DefaultValidationGroupResolver implements ValidationGroupResolver {
 
   private final Class<?>[] defaultGroups;
-  private final boolean defaultValidateReturnValue;
 
-  public DefaultValidationGroupResolver(
-      Class<?>[] defaultGroups, boolean defaultValidateReturnValue) {
+  public DefaultValidationGroupResolver(Class<?>[] defaultGroups) {
     this.defaultGroups = Objects.requireNonNull(defaultGroups, "defaultGroups").clone();
-    this.defaultValidateReturnValue = defaultValidateReturnValue;
   }
 
   @Override
@@ -36,15 +33,6 @@ public final class DefaultValidationGroupResolver implements ValidationGroupReso
       return annotation.groups();
     }
     return defaultGroups.clone();
-  }
-
-  @Override
-  public boolean shouldValidateReturnValue(Object target, Method method) {
-    MethodValidation annotation = findAnnotation(target, method);
-    if (annotation != null) {
-      return annotation.validateReturnValue();
-    }
-    return defaultValidateReturnValue;
   }
 
   private MethodValidation findAnnotation(Object target, Method method) {

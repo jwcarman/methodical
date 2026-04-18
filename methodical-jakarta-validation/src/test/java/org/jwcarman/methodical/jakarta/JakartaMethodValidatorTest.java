@@ -53,23 +53,21 @@ class JakartaMethodValidatorTest {
     return v.forExecutables();
   }
 
-  private JakartaMethodValidator newValidator(
-      Method method, Class<?>[] groups, boolean validateReturnValue) {
-    return new JakartaMethodValidator(
-        EXECUTABLE_VALIDATOR, new Service(), method, groups, validateReturnValue);
+  private JakartaMethodValidator newValidator(Method method, Class<?>[] groups) {
+    return new JakartaMethodValidator(EXECUTABLE_VALIDATOR, new Service(), method, groups);
   }
 
   @Test
   void valid_parameters_pass() throws Exception {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
-    JakartaMethodValidator v = newValidator(m, new Class<?>[] {Default.class}, true);
+    JakartaMethodValidator v = newValidator(m, new Class<?>[] {Default.class});
     assertThatCode(() -> v.validateParameters(new Object[] {"world"})).doesNotThrowAnyException();
   }
 
   @Test
   void invalid_parameters_throw_ConstraintViolationException() throws Exception {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
-    JakartaMethodValidator v = newValidator(m, new Class<?>[] {Default.class}, true);
+    JakartaMethodValidator v = newValidator(m, new Class<?>[] {Default.class});
     assertThatThrownBy(() -> v.validateParameters(new Object[] {""}))
         .isInstanceOf(ConstraintViolationException.class);
   }
@@ -77,26 +75,19 @@ class JakartaMethodValidatorTest {
   @Test
   void invalid_return_value_throws_ConstraintViolationException() throws Exception {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
-    JakartaMethodValidator v = newValidator(m, new Class<?>[] {Default.class}, true);
+    JakartaMethodValidator v = newValidator(m, new Class<?>[] {Default.class});
     assertThatThrownBy(() -> v.validateReturnValue(null))
         .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test
-  void return_value_validation_skipped_when_flag_is_false() throws Exception {
-    Method m = Service.class.getDeclaredMethod("greet", String.class);
-    JakartaMethodValidator v = newValidator(m, new Class<?>[] {Default.class}, false);
-    assertThatCode(() -> v.validateReturnValue(null)).doesNotThrowAnyException();
-  }
-
-  @Test
   void groups_filter_constraints() throws Exception {
     Method m = Service.class.getDeclaredMethod("onlyValidatedInOtherGroup", String.class);
-    JakartaMethodValidator defaultGroupOnly = newValidator(m, new Class<?>[] {Default.class}, true);
+    JakartaMethodValidator defaultGroupOnly = newValidator(m, new Class<?>[] {Default.class});
     assertThatCode(() -> defaultGroupOnly.validateParameters(new Object[] {""}))
         .doesNotThrowAnyException();
 
-    JakartaMethodValidator otherGroup = newValidator(m, new Class<?>[] {OtherGroup.class}, true);
+    JakartaMethodValidator otherGroup = newValidator(m, new Class<?>[] {OtherGroup.class});
     assertThatThrownBy(() -> otherGroup.validateParameters(new Object[] {""}))
         .isInstanceOf(ConstraintViolationException.class);
   }
@@ -105,7 +96,7 @@ class JakartaMethodValidatorTest {
   void groups_array_is_defensively_copied() throws Exception {
     Method m = Service.class.getDeclaredMethod("onlyValidatedInOtherGroup", String.class);
     Class<?>[] groups = new Class<?>[] {OtherGroup.class};
-    JakartaMethodValidator v = newValidator(m, groups, true);
+    JakartaMethodValidator v = newValidator(m, groups);
 
     groups[0] = Default.class;
 
@@ -119,7 +110,7 @@ class JakartaMethodValidatorTest {
     assertThatThrownBy(
             () ->
                 new JakartaMethodValidator(
-                    EXECUTABLE_VALIDATOR, null, m, new Class<?>[] {Default.class}, true))
+                    EXECUTABLE_VALIDATOR, null, m, new Class<?>[] {Default.class}))
         .isInstanceOf(NullPointerException.class);
   }
 
@@ -128,11 +119,7 @@ class JakartaMethodValidatorTest {
     assertThatThrownBy(
             () ->
                 new JakartaMethodValidator(
-                    EXECUTABLE_VALIDATOR,
-                    new Service(),
-                    null,
-                    new Class<?>[] {Default.class},
-                    true))
+                    EXECUTABLE_VALIDATOR, new Service(), null, new Class<?>[] {Default.class}))
         .isInstanceOf(NullPointerException.class);
   }
 
@@ -140,7 +127,7 @@ class JakartaMethodValidatorTest {
   void rejects_null_groups() throws Exception {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
     assertThatThrownBy(
-            () -> new JakartaMethodValidator(EXECUTABLE_VALIDATOR, new Service(), m, null, true))
+            () -> new JakartaMethodValidator(EXECUTABLE_VALIDATOR, new Service(), m, null))
         .isInstanceOf(NullPointerException.class);
   }
 }

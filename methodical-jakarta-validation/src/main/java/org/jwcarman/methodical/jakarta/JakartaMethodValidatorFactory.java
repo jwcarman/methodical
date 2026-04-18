@@ -39,7 +39,6 @@ public final class JakartaMethodValidatorFactory implements MethodValidatorFacto
       return MethodValidator.NO_OP;
     }
     Class<?>[] groups = groupResolver.resolveGroups(target, method);
-    boolean validateReturn = groupResolver.shouldValidateReturnValue(target, method);
-    return new JakartaMethodValidator(executableValidator, target, method, groups, validateReturn);
+    return new JakartaMethodValidator(executableValidator, target, method, groups);
   }
 }

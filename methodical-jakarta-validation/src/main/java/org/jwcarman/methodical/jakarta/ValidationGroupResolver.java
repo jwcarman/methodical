@@ -18,14 +18,12 @@ package org.jwcarman.methodical.jakarta;
 import java.lang.reflect.Method;
 
 /**
- * Resolves the validation groups and return-value flag for a given method invocation.
+ * Resolves the active Jakarta Bean Validation groups for a given method invocation.
  *
- * <p>Used by {@code JakartaMethodValidatorFactory} at bind time to capture the validation
- * configuration that applies to a specific {@code (target, method)} pair.
+ * <p>Used by {@link JakartaMethodValidatorFactory} at bind time to capture the validation groups
+ * that apply to a specific {@code (target, method)} pair.
  */
 public interface ValidationGroupResolver {
 
   Class<?>[] resolveGroups(Object target, Method method);
-
-  boolean shouldValidateReturnValue(Object target, Method method);
 }
