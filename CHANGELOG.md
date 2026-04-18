@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `MethodValidatorFactory`/`MethodValidator` SPI in `methodical-core` for validating reflective method invocations; defaults to a no-op factory.
+- New `methodical-jakarta-validation` module providing Jakarta Bean Validation integration via `JakartaMethodValidatorFactory`, `@MethodValidation` annotation, and `ValidationGroupResolver`.
+
 ## [0.4.0] - 2026-04-14
 
 ### Breaking changes
