@@ -25,7 +25,6 @@ import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodInvokerFactory;
 import org.jwcarman.methodical.MethodValidatorFactory;
-import org.jwcarman.methodical.NoOpMethodValidatorFactory;
 import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
@@ -38,7 +37,7 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
   private final MethodValidatorFactory validatorFactory;
 
   public DefaultMethodInvokerFactory(List<ParameterResolver<?>> resolvers) {
-    this(resolvers, new NoOpMethodValidatorFactory());
+    this(resolvers, MethodValidatorFactory.NO_OP);
   }
 
   public DefaultMethodInvokerFactory(

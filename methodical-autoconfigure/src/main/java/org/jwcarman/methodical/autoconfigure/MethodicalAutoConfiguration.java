@@ -18,7 +18,6 @@ package org.jwcarman.methodical.autoconfigure;
 import java.util.List;
 import org.jwcarman.methodical.MethodInvokerFactory;
 import org.jwcarman.methodical.MethodValidatorFactory;
-import org.jwcarman.methodical.NoOpMethodValidatorFactory;
 import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
 import org.jwcarman.methodical.param.ParameterResolver;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -29,9 +28,9 @@ import org.springframework.context.annotation.Bean;
 public class MethodicalAutoConfiguration {
 
   @Bean
-  @ConditionalOnMissingBean(MethodValidatorFactory.class)
-  public NoOpMethodValidatorFactory methodValidatorFactory() {
-    return new NoOpMethodValidatorFactory();
+  @ConditionalOnMissingBean
+  public MethodValidatorFactory methodValidatorFactory() {
+    return MethodValidatorFactory.NO_OP;
   }
 
   @Bean

@@ -28,7 +28,6 @@ import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodInvokerFactory;
 import org.jwcarman.methodical.MethodValidatorFactory;
-import org.jwcarman.methodical.NoOpMethodValidatorFactory;
 import org.jwcarman.methodical.jakarta.JakartaMethodValidatorFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -80,7 +79,7 @@ class JakartaValidationAutoConfigurationTest {
         context -> {
           assertThat(context).doesNotHaveBean(JakartaMethodValidatorFactory.class);
           assertThat(context.getBean(MethodValidatorFactory.class))
-              .isInstanceOf(NoOpMethodValidatorFactory.class);
+              .isSameAs(MethodValidatorFactory.NO_OP);
         });
   }
 }

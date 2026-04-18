@@ -27,5 +27,8 @@ import java.lang.reflect.Method;
 @FunctionalInterface
 public interface MethodValidatorFactory {
 
+  /** Canonical no-op factory; always returns {@link MethodValidator#NO_OP}. */
+  MethodValidatorFactory NO_OP = (target, method) -> MethodValidator.NO_OP;
+
   MethodValidator create(Object target, Method method);
 }
