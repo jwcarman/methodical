@@ -57,6 +57,11 @@
             </dependency>
             <dependency>
                 <groupId>org.jwcarman.methodical</groupId>
+                <artifactId>methodical-jakarta-validation</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jwcarman.methodical</groupId>
                 <artifactId>methodical-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
