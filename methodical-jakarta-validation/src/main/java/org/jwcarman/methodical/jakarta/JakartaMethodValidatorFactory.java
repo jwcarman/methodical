@@ -17,6 +17,7 @@ package org.jwcarman.methodical.jakarta;
 
 import jakarta.validation.Validator;
 import jakarta.validation.executable.ExecutableValidator;
+import jakarta.validation.groups.Default;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Objects;
@@ -25,12 +26,12 @@ import org.jwcarman.methodical.MethodValidatorFactory;
 
 public final class JakartaMethodValidatorFactory implements MethodValidatorFactory {
 
-  private final ExecutableValidator executableValidator;
-  private final ValidationGroupResolver groupResolver;
+  private static final Class<?>[] DEFAULT_GROUPS = {Default.class};
 
-  public JakartaMethodValidatorFactory(Validator validator, ValidationGroupResolver groupResolver) {
+  private final ExecutableValidator executableValidator;
+
+  public JakartaMethodValidatorFactory(Validator validator) {
     this.executableValidator = Objects.requireNonNull(validator, "validator").forExecutables();
-    this.groupResolver = Objects.requireNonNull(groupResolver, "groupResolver");
   }
 
   @Override
@@ -38,7 +39,15 @@ public final class JakartaMethodValidatorFactory implements MethodValidatorFacto
     if (target == null || Modifier.isStatic(method.getModifiers())) {
       return MethodValidator.NO_OP;
     }
-    Class<?>[] groups = groupResolver.resolveGroups(target, method);
-    return new JakartaMethodValidator(executableValidator, target, method, groups);
+    return new JakartaMethodValidator(
+        executableValidator, target, method, resolveGroups(target, method));
+  }
+
+  private static Class<?>[] resolveGroups(Object target, Method method) {
+    ValidationGroups annotation = Annotations.findOnMethod(method, ValidationGroups.class);
+    if (annotation == null) {
+      annotation = Annotations.findOnClass(target.getClass(), ValidationGroups.class);
+    }
+    return annotation != null ? annotation.value() : DEFAULT_GROUPS;
   }
 }

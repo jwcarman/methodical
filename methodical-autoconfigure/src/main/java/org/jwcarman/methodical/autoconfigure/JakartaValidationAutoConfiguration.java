@@ -16,14 +16,10 @@
 package org.jwcarman.methodical.autoconfigure;
 
 import jakarta.validation.Validator;
-import jakarta.validation.groups.Default;
-import org.jwcarman.methodical.jakarta.DefaultValidationGroupResolver;
 import org.jwcarman.methodical.jakarta.JakartaMethodValidatorFactory;
-import org.jwcarman.methodical.jakarta.ValidationGroupResolver;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration(
@@ -34,14 +30,7 @@ import org.springframework.context.annotation.Bean;
 public class JakartaValidationAutoConfiguration {
 
   @Bean
-  @ConditionalOnMissingBean
-  public DefaultValidationGroupResolver methodicalValidationGroupResolver() {
-    return new DefaultValidationGroupResolver(new Class<?>[] {Default.class});
-  }
-
-  @Bean
-  public JakartaMethodValidatorFactory jakartaMethodValidatorFactory(
-      Validator validator, ValidationGroupResolver groupResolver) {
-    return new JakartaMethodValidatorFactory(validator, groupResolver);
+  public JakartaMethodValidatorFactory jakartaMethodValidatorFactory(Validator validator) {
+    return new JakartaMethodValidatorFactory(validator);
   }
 }

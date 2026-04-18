@@ -15,7 +15,6 @@
  */
 package org.jwcarman.methodical.jakarta;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -24,7 +23,6 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.groups.Default;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
@@ -33,6 +31,8 @@ import org.jwcarman.methodical.MethodValidator;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class JakartaMethodValidatorFactoryTest {
+
+  interface OnCreate {}
 
   static class Service {
     @NotBlank
@@ -45,8 +45,19 @@ class JakartaMethodValidatorFactoryTest {
       return ok ? "value" : null;
     }
 
+    public String createOnly(@NotBlank(groups = OnCreate.class) String name) {
+      return name;
+    }
+
     public static String staticMethod(@NotBlank String s) {
       return s;
+    }
+  }
+
+  @ValidationGroups(OnCreate.class)
+  static class CreateOnlyService {
+    public String run(@NotBlank(groups = OnCreate.class) String name) {
+      return name;
     }
   }
 
@@ -55,8 +66,7 @@ class JakartaMethodValidatorFactoryTest {
   }
 
   private JakartaMethodValidatorFactory newFactory() {
-    return new JakartaMethodValidatorFactory(
-        validator(), new DefaultValidationGroupResolver(new Class<?>[] {Default.class}));
+    return new JakartaMethodValidatorFactory(validator());
   }
 
   @Test
@@ -90,6 +100,21 @@ class JakartaMethodValidatorFactoryTest {
   }
 
   @Test
+  void default_groups_skip_constraints_annotated_for_other_groups() throws Exception {
+    Method m = Service.class.getDeclaredMethod("createOnly", String.class);
+    MethodValidator v = newFactory().create(new Service(), m);
+    assertThatCode(() -> v.validateParameters(new Object[] {""})).doesNotThrowAnyException();
+  }
+
+  @Test
+  void class_level_ValidationGroups_activates_group_specific_constraints() throws Exception {
+    Method m = CreateOnlyService.class.getDeclaredMethod("run", String.class);
+    MethodValidator v = newFactory().create(new CreateOnlyService(), m);
+    assertThatThrownBy(() -> v.validateParameters(new Object[] {""}))
+        .isInstanceOf(ConstraintViolationException.class);
+  }
+
+  @Test
   void static_methods_return_no_op() throws Exception {
     Method m = Service.class.getDeclaredMethod("staticMethod", String.class);
     MethodValidator v = newFactory().create(null, m);
@@ -102,30 +127,5 @@ class JakartaMethodValidatorFactoryTest {
     Method m = Service.class.getDeclaredMethod("greet", String.class);
     MethodValidator v = newFactory().create(null, m);
     assertThatCode(() -> v.validateParameters(new Object[] {""})).doesNotThrowAnyException();
-  }
-
-  @Test
-  void resolver_invoked_at_bind_time_not_per_call() throws Exception {
-    int[] calls = {0};
-    ValidationGroupResolver counting =
-        (target, method) -> {
-          calls[0]++;
-          return new Class<?>[] {Default.class};
-        };
-    JakartaMethodValidatorFactory factory =
-        new JakartaMethodValidatorFactory(validator(), counting);
-    Method m = Service.class.getDeclaredMethod("greet", String.class);
-    Service target = new Service();
-
-    MethodValidator v = factory.create(target, m);
-
-    assertThat(calls[0]).isEqualTo(1);
-
-    v.validateParameters(new Object[] {"a"});
-    v.validateParameters(new Object[] {"b"});
-    v.validateReturnValue("x");
-    v.validateReturnValue("y");
-
-    assertThat(calls[0]).isEqualTo(1);
   }
 }

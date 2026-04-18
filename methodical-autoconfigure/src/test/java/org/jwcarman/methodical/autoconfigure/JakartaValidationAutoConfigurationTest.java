@@ -30,7 +30,6 @@ import org.jwcarman.methodical.MethodInvokerFactory;
 import org.jwcarman.methodical.MethodValidatorFactory;
 import org.jwcarman.methodical.NoOpMethodValidatorFactory;
 import org.jwcarman.methodical.jakarta.JakartaMethodValidatorFactory;
-import org.jwcarman.methodical.jakarta.ValidationGroupResolver;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -55,7 +54,6 @@ class JakartaValidationAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).hasSingleBean(JakartaMethodValidatorFactory.class);
-              assertThat(context).hasSingleBean(ValidationGroupResolver.class);
               assertThat(context.getBean(MethodValidatorFactory.class))
                   .isInstanceOf(JakartaMethodValidatorFactory.class);
             });

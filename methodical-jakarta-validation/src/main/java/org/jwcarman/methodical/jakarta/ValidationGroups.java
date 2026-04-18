@@ -15,20 +15,22 @@
  */
 package org.jwcarman.methodical.jakarta;
 
+import jakarta.validation.groups.Default;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Configures Jakarta Bean Validation behavior for a Methodical-invoked method.
+ * Declares the Jakarta Bean Validation groups to activate when Methodical invokes the annotated
+ * method (or any method on the annotated class).
  *
- * <p>May be placed on the method itself or on the declaring class. Method-level annotations
- * override class-level annotations. Inherited from superclasses and implemented interfaces.
+ * <p>Method-level annotations override class-level annotations. Inherited from superclasses and
+ * implemented interfaces. When absent, {@link Default} is used.
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface MethodValidation {
+public @interface ValidationGroups {
 
-  Class<?>[] groups() default {};
+  Class<?>[] value() default {Default.class};
 }
