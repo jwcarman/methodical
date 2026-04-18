@@ -89,10 +89,11 @@ The resolver sees `"user_name"` instead of `"name"` when looking up the value.
 
 | Module | Description |
 |--------|-------------|
-| `methodical-core` | Core API: `MethodInvokerFactory`, `ParameterResolver<A>`, `@Named` |
+| `methodical-core` | Core API: `MethodInvokerFactory`, `ParameterResolver<A>`, `MethodValidatorFactory`, `@Named` |
 | `methodical-jackson3` | Jackson 3 (`tools.jackson`) parameter resolver |
 | `methodical-jackson2` | Jackson 2 (`com.fasterxml.jackson`) parameter resolver |
 | `methodical-gson` | Gson parameter resolver |
+| `methodical-jakarta-validation` | Jakarta Bean Validation integration (`@NotNull`, `@NotBlank`, etc. on invoked-method parameters and return values) |
 | `methodical-autoconfigure` | Spring Boot auto-configuration |
 | `methodical-spring-boot-starter` | Starter pulling in core + autoconfigure |
 | `methodical-bom` | Bill of materials for dependency management |
@@ -128,6 +129,66 @@ And a JSON module (whichever matches your Spring Boot version):
 ```
 
 Auto-configuration detects which JSON library is on the classpath and registers the appropriate resolver at lowest priority (catch-all). Custom resolvers registered as Spring beans take precedence.
+
+## Jakarta Bean Validation
+
+Add `methodical-jakarta-validation` to validate method parameters and return values with standard Jakarta constraints (`@NotNull`, `@NotBlank`, `@Size`, `@Valid` cascades, etc.). Validation runs around every reflective invocation — parameters before the call, return value after.
+
+```xml
+<dependency>
+    <groupId>org.jwcarman.methodical</groupId>
+    <artifactId>methodical-jakarta-validation</artifactId>
+    <version>${methodical.version}</version>
+</dependency>
+```
+
+You also need a Jakarta Validation provider at runtime. In a Spring Boot app, `spring-boot-starter-validation` brings Hibernate Validator and auto-configures a `Validator` bean:
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+```
+
+Then just annotate:
+
+```java
+public User createUser(@NotBlank String name, @Valid @NotNull Address address) {
+    // ...
+}
+```
+
+Invalid input throws `jakarta.validation.ConstraintViolationException` from `MethodInvoker.invoke(...)`.
+
+### Validation Groups
+
+For per-method/per-class group activation, annotate with `@ValidationGroups`:
+
+```java
+interface OnCreate {}
+interface OnUpdate {}
+
+@ValidationGroups(OnCreate.class)
+public User createUser(@NotBlank(groups = OnCreate.class) String email) { ... }
+
+@ValidationGroups(OnUpdate.class)
+public User updateUser(@Null(groups = OnCreate.class) @NotNull(groups = OnUpdate.class) Long id) { ... }
+```
+
+Method-level overrides class-level. Both are inherited from supertypes (including bridge-methods from generic interfaces). When absent, `jakarta.validation.groups.Default` is used — matching stock Jakarta behavior.
+
+### Standalone (no Spring)
+
+Wire it manually:
+
+```java
+Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+JakartaMethodValidatorFactory validatorFactory = new JakartaMethodValidatorFactory(validator);
+DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory(resolvers, validatorFactory);
+```
+
+The autoconfig module registers `JakartaMethodValidatorFactory` as a bean whenever both `jakarta.validation.Validator` is on the classpath and a `Validator` bean is present — the no-op fallback (`NoOpMethodValidatorFactory`) wins when validation isn't wired up, so the starter alone imposes zero validation overhead.
 
 ## Writing a Custom Resolver
 
@@ -170,6 +231,7 @@ All Methodical exceptions extend `MethodicalException` (abstract, unchecked):
 - **`ParameterResolutionException`** — a resolver failed to deserialize a parameter (e.g., invalid JSON), *or* the factory couldn't find a resolver for a parameter at `create(...)` time. Catch this to distinguish bad input / misconfiguration from other failures.
 - **`MethodInvocationException`** — reflection failure (private method, inaccessible) or checked exception from the invoked method.
 - **Runtime exceptions** from the invoked method are unwrapped and rethrown as-is — not wrapped.
+- **`jakarta.validation.ConstraintViolationException`** — thrown by `methodical-jakarta-validation` when a parameter or return value fails Jakarta Bean Validation. Not a `MethodicalException` subclass; it propagates directly so consumers can handle it using standard Jakarta patterns.
 
 ```java
 try {
