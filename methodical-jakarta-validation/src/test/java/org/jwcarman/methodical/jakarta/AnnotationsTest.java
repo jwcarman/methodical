@@ -83,6 +83,10 @@ class AnnotationsTest {
     }
   }
 
+  interface BareInterface {
+    void doSomething();
+  }
+
   interface Handler<T> {
     @Marker("generic-iface")
     void handle(T t);
@@ -122,6 +126,12 @@ class AnnotationsTest {
   @Test
   void method_annotation_returns_null_when_absent() throws Exception {
     Method m = Plain.class.getMethod("hello");
+    assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
+  }
+
+  @Test
+  void method_on_unannotated_interface_skips_superclass_walk() throws Exception {
+    Method m = BareInterface.class.getDeclaredMethod("doSomething");
     assertThat(Annotations.findOnMethod(m, Marker.class)).isNull();
   }
 
