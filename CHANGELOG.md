@@ -7,10 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-18
+
 ### Added
 
-- New `MethodValidatorFactory`/`MethodValidator` SPI in `methodical-core` for validating reflective method invocations; defaults to a no-op factory.
-- New `methodical-jakarta-validation` module providing Jakarta Bean Validation integration via `JakartaMethodValidatorFactory`, `@MethodValidation` annotation, and `ValidationGroupResolver`.
+- **`MethodValidatorFactory` / `MethodValidator` SPI** in `methodical-core` — optional hook called around every reflective method invocation. `MethodValidatorFactory.create(target, method)` is called once at `MethodInvoker` construction and returns a bound `MethodValidator` whose hot-path `validateParameters(args)` / `validateReturnValue(result)` methods have no per-call resolver overhead. `MethodValidatorFactory.NO_OP` is the canonical no-op singleton.
+- **`methodical-jakarta-validation` module** — Jakarta Bean Validation integration. `JakartaMethodValidatorFactory` wraps a `jakarta.validation.Validator`; the resulting bound `JakartaMethodValidator` enforces constraint annotations (`@NotNull`, `@NotBlank`, `@Size`, `@Valid` cascades, etc.) on parameters and return values at every `MethodInvoker.invoke(...)`. Constraint violations surface as `jakarta.validation.ConstraintViolationException`.
+- **`@ValidationGroups` annotation** — declare Jakarta validation groups for a method or class. Method-level wins over class-level; inherited through superclass chain and implemented interfaces (matching Spring's `@Validated` and Hibernate Validator conventions). Defaults to `{Default.class}` when absent.
+- **Spring Boot auto-configuration** for validation. `MethodicalAutoConfiguration` gains a default `MethodValidatorFactory` bean (`NO_OP`). When `jakarta.validation.Validator` and a `Validator` bean are present, `JakartaValidationAutoConfiguration` registers a `JakartaMethodValidatorFactory` — adding `spring-boot-starter-validation` + `methodical-jakarta-validation` to a Spring Boot app is the full setup; no manual wiring.
+
+### Changed
+
+- **`DefaultMethodInvoker` now calls `method.setAccessible(true)` at construction.** Methodical can now invoke private and package-private methods, and public methods on non-public classes from outside the declaring package. Previously these threw `MethodInvocationException` wrapping `IllegalAccessException`. The `IllegalAccessException` catch block is retained for defense-in-depth (e.g., `SecurityManager` rejections) but is no longer reachable via normal access restrictions.
+
+### Requirements
+
+- `methodical-jakarta-validation` requires a Jakarta Bean Validation 3.x provider at runtime (e.g., Hibernate Validator 9.x, typically brought in via `spring-boot-starter-validation`).
+- Modules consuming Java Platform Module System (`module-info.java`) must `opens` their target packages to `methodical-core`; without this, `setAccessible(true)` throws `InaccessibleObjectException` at `MethodInvoker` construction. Non-module-path consumers are unaffected.
 
 ## [0.4.0] - 2026-04-14
 
@@ -91,7 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.4.0...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.5.0...HEAD
+[0.5.0]: https://github.com/jwcarman/methodical/releases/tag/0.5.0
 [0.4.0]: https://github.com/jwcarman/methodical/releases/tag/0.4.0
 [0.3.0]: https://github.com/jwcarman/methodical/releases/tag/0.3.0
 [0.2.1]: https://github.com/jwcarman/methodical/releases/tag/0.2.1
