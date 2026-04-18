@@ -27,6 +27,20 @@ package org.jwcarman.methodical;
  */
 public interface MethodValidator {
 
+  /** Canonical no-op {@link MethodValidator}; thread-safe singleton. */
+  MethodValidator NO_OP =
+      new MethodValidator() {
+        @Override
+        public void validateParameters(Object[] args) {
+          // intentionally empty
+        }
+
+        @Override
+        public void validateReturnValue(Object returnValue) {
+          // intentionally empty
+        }
+      };
+
   void validateParameters(Object[] args);
 
   void validateReturnValue(Object returnValue);
