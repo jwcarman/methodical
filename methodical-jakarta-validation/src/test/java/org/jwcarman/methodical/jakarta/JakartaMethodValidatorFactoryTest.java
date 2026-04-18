@@ -49,6 +49,11 @@ class JakartaMethodValidatorFactoryTest {
       return name;
     }
 
+    @ValidationGroups(OnCreate.class)
+    public String methodAnnotated(@NotBlank(groups = OnCreate.class) String name) {
+      return name;
+    }
+
     public static String staticMethod(@NotBlank String s) {
       return s;
     }
@@ -110,6 +115,14 @@ class JakartaMethodValidatorFactoryTest {
   void class_level_ValidationGroups_activates_group_specific_constraints() throws Exception {
     Method m = CreateOnlyService.class.getDeclaredMethod("run", String.class);
     MethodValidator v = newFactory().create(new CreateOnlyService(), m);
+    assertThatThrownBy(() -> v.validateParameters(new Object[] {""}))
+        .isInstanceOf(ConstraintViolationException.class);
+  }
+
+  @Test
+  void method_level_ValidationGroups_activates_group_specific_constraints() throws Exception {
+    Method m = Service.class.getDeclaredMethod("methodAnnotated", String.class);
+    MethodValidator v = newFactory().create(new Service(), m);
     assertThatThrownBy(() -> v.validateParameters(new Object[] {""}))
         .isInstanceOf(ConstraintViolationException.class);
   }
