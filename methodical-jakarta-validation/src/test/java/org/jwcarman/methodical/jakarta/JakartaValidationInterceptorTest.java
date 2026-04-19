@@ -93,10 +93,9 @@ class JakartaValidationInterceptorTest {
   @Test
   void invalid_parameters_throw_constraint_violation() throws Exception {
     Method m = Service.class.getMethod("echo", String.class);
-    assertThatThrownBy(
-            () ->
-                interceptor.intercept(
-                    invocationOf(m, new Service(), "arg", new Object[] {""}, "unreached")))
+    MethodInvocation<String> inv =
+        invocationOf(m, new Service(), "arg", new Object[] {""}, "unreached");
+    assertThatThrownBy(() -> interceptor.intercept(inv))
         .isInstanceOf(ConstraintViolationException.class);
   }
 
@@ -122,8 +121,8 @@ class JakartaValidationInterceptorTest {
   @Test
   void invalid_return_value_throws_constraint_violation() throws Exception {
     Method m = Service.class.getMethod("nullReturn");
-    assertThatThrownBy(
-            () -> interceptor.intercept(invocationOf(m, new Service(), null, new Object[0], null)))
+    MethodInvocation<Object> inv = invocationOf(m, new Service(), null, new Object[0], null);
+    assertThatThrownBy(() -> interceptor.intercept(inv))
         .isInstanceOf(ConstraintViolationException.class);
   }
 
@@ -155,10 +154,9 @@ class JakartaValidationInterceptorTest {
   void method_level_validation_groups_applied() throws Exception {
     Method m = Service.class.getMethod("groupedEcho", String.class);
     // GroupA active → blank fails
-    assertThatThrownBy(
-            () ->
-                interceptor.intercept(
-                    invocationOf(m, new Service(), "arg", new Object[] {""}, "unreached")))
+    MethodInvocation<String> inv =
+        invocationOf(m, new Service(), "arg", new Object[] {""}, "unreached");
+    assertThatThrownBy(() -> interceptor.intercept(inv))
         .isInstanceOf(ConstraintViolationException.class);
   }
 

@@ -168,7 +168,7 @@ class DefaultMethodInvokerMethodShapesTest {
   public static class VoidTarget {
     private String captured;
 
-    public void record(@Argument String s) {
+    public void capture(@Argument String s) {
       this.captured = s;
     }
   }
@@ -176,7 +176,7 @@ class DefaultMethodInvokerMethodShapesTest {
   @Test
   void void_return_surfaces_as_null() throws Exception {
     VoidTarget target = new VoidTarget();
-    Method m = VoidTarget.class.getMethod("record", String.class);
+    Method m = VoidTarget.class.getMethod("capture", String.class);
     MethodInvoker<String> invoker = factory.create(m, target, String.class);
     assertThat(invoker.invoke("captured")).isNull();
     assertThat(target.captured).isEqualTo("captured");

@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 import org.jwcarman.methodical.MethodInvokerConfig;
 import org.jwcarman.methodical.intercept.MethodInterceptor;
+import org.jwcarman.methodical.intercept.MethodInvocation;
 import org.jwcarman.methodical.param.ParameterResolver;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
@@ -62,7 +63,7 @@ class DefaultMethodInvokerConfigTest {
   @Test
   void interceptor_returns_self_for_chaining() {
     DefaultMethodInvokerConfig<String> cfg = new DefaultMethodInvokerConfig<>();
-    MethodInterceptor<String> i = invocation -> invocation.proceed();
+    MethodInterceptor<String> i = MethodInvocation::proceed;
     MethodInvokerConfig<String> returned = cfg.interceptor(i);
     assertThat(returned).isSameAs(cfg);
   }
@@ -70,9 +71,9 @@ class DefaultMethodInvokerConfigTest {
   @Test
   void interceptors_exposed_list_preserves_registration_order() {
     DefaultMethodInvokerConfig<String> cfg = new DefaultMethodInvokerConfig<>();
-    MethodInterceptor<String> a = invocation -> invocation.proceed();
-    MethodInterceptor<String> b = invocation -> invocation.proceed();
-    MethodInterceptor<String> c = invocation -> invocation.proceed();
+    MethodInterceptor<String> a = MethodInvocation::proceed;
+    MethodInterceptor<String> b = MethodInvocation::proceed;
+    MethodInterceptor<String> c = MethodInvocation::proceed;
     cfg.interceptor(a).interceptor(b).interceptor(c);
     assertThat(cfg.interceptors()).containsExactly(a, b, c);
   }
@@ -80,9 +81,9 @@ class DefaultMethodInvokerConfigTest {
   @Test
   void interceptors_exposed_list_is_immutable() {
     DefaultMethodInvokerConfig<String> cfg = new DefaultMethodInvokerConfig<>();
-    cfg.interceptor(invocation -> invocation.proceed());
+    cfg.interceptor(MethodInvocation::proceed);
     var list = cfg.interceptors();
-    assertThatThrownBy(() -> list.add(invocation -> invocation.proceed()))
+    assertThatThrownBy(() -> list.add(MethodInvocation::proceed))
         .isInstanceOf(UnsupportedOperationException.class);
   }
 }

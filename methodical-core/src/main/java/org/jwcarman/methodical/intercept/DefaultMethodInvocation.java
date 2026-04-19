@@ -16,6 +16,8 @@
 package org.jwcarman.methodical.intercept;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 record DefaultMethodInvocation<A>(
@@ -39,5 +41,39 @@ record DefaultMethodInvocation<A>(
   @Override
   public Object proceed() {
     return continuation.get();
+  }
+
+  // equals/hashCode/toString overridden so the Object[] component participates by deep value
+  // rather than by reference identity (the default record behavior).
+
+  @Override
+  public boolean equals(Object other) {
+    return other instanceof DefaultMethodInvocation<?> that
+        && Objects.equals(method, that.method)
+        && Objects.equals(target, that.target)
+        && Objects.equals(argument, that.argument)
+        && Arrays.equals(resolvedParameters, that.resolvedParameters)
+        && Objects.equals(continuation, that.continuation);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(
+        method, target, argument, Arrays.hashCode(resolvedParameters), continuation);
+  }
+
+  @Override
+  public String toString() {
+    return "DefaultMethodInvocation[method="
+        + method
+        + ", target="
+        + target
+        + ", argument="
+        + argument
+        + ", resolvedParameters="
+        + Arrays.toString(resolvedParameters)
+        + ", continuation="
+        + continuation
+        + "]";
   }
 }
