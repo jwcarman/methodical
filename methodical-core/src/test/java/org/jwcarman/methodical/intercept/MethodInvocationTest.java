@@ -103,6 +103,75 @@ class MethodInvocationTest {
   }
 
   @Test
+  void equals_and_hashCode_are_value_based_over_method_target_argument_parameters()
+      throws Exception {
+    Object target = new Target();
+    MethodInvocation<String> a =
+        MethodInvocation.of(method(), target, "x", new Object[] {"x", 1}, () -> "A");
+    MethodInvocation<String> b =
+        MethodInvocation.of(method(), target, "x", new Object[] {"x", 1}, () -> "B-different");
+    assertThat(a).isEqualTo(b);
+    assertThat(a).hasSameHashCodeAs(b);
+  }
+
+  @Test
+  void equals_is_false_when_argument_differs() throws Exception {
+    Object target = new Target();
+    MethodInvocation<String> a =
+        MethodInvocation.of(method(), target, "x", new Object[] {"x"}, () -> null);
+    MethodInvocation<String> b =
+        MethodInvocation.of(method(), target, "y", new Object[] {"x"}, () -> null);
+    assertThat(a).isNotEqualTo(b);
+  }
+
+  @Test
+  void equals_is_false_when_parameters_differ() throws Exception {
+    Object target = new Target();
+    MethodInvocation<String> a =
+        MethodInvocation.of(method(), target, "x", new Object[] {"a"}, () -> null);
+    MethodInvocation<String> b =
+        MethodInvocation.of(method(), target, "x", new Object[] {"b"}, () -> null);
+    assertThat(a).isNotEqualTo(b);
+  }
+
+  @Test
+  void equals_is_false_when_target_differs() throws Exception {
+    MethodInvocation<String> a =
+        MethodInvocation.of(method(), new Target(), "x", new Object[0], () -> null);
+    MethodInvocation<String> b =
+        MethodInvocation.of(method(), new Target(), "x", new Object[0], () -> null);
+    assertThat(a).isNotEqualTo(b); // distinct target instances
+  }
+
+  @Test
+  void equals_is_false_for_non_method_invocation() throws Exception {
+    MethodInvocation<String> a =
+        MethodInvocation.of(method(), new Target(), "x", new Object[0], () -> null);
+    assertThat(a).isNotEqualTo("not an invocation");
+    assertThat(a).isNotEqualTo(null);
+  }
+
+  @Test
+  void toString_renders_only_method_identity_and_does_not_leak_sensitive_state() throws Exception {
+    MethodInvocation<String> inv =
+        MethodInvocation.of(
+            method(),
+            new Target(),
+            "super-secret-password",
+            new Object[] {"super-secret-password", "another-secret"},
+            () -> {
+              throw new AssertionError("continuation should not be invoked by toString");
+            });
+    String s = inv.toString();
+    assertThat(s).contains("Target").contains("greet");
+    assertThat(s)
+        .doesNotContain("super-secret-password")
+        .doesNotContain("another-secret")
+        .doesNotContain("Lambda")
+        .doesNotContain("continuation");
+  }
+
+  @Test
   void proceed_can_be_called_multiple_times() throws Exception {
     AtomicInteger calls = new AtomicInteger();
     MethodInvocation<String> inv =

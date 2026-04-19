@@ -43,37 +43,41 @@ record DefaultMethodInvocation<A>(
     return continuation.get();
   }
 
-  // equals/hashCode/toString overridden so the Object[] component participates by deep value
-  // rather than by reference identity (the default record behavior).
+  // equals/hashCode/toString define invocation identity over the call data
+  // (method, target, argument, resolvedParameters). The continuation is an
+  // opaque chain-control lambda, not part of what the invocation represents;
+  // it is excluded from identity and from the rendered string.
 
   @Override
   public boolean equals(Object other) {
-    return other instanceof DefaultMethodInvocation<?> that
-        && Objects.equals(method, that.method)
-        && Objects.equals(target, that.target)
-        && Objects.equals(argument, that.argument)
-        && Arrays.equals(resolvedParameters, that.resolvedParameters)
-        && Objects.equals(continuation, that.continuation);
+    return other
+            instanceof
+            DefaultMethodInvocation<?>(
+                Method m,
+                Object t,
+                Object arg,
+                Object[] params,
+                Supplier<Object> _)
+        && Objects.equals(method, m)
+        && Objects.equals(target, t)
+        && Objects.equals(argument, arg)
+        && Arrays.equals(resolvedParameters, params);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(
-        method, target, argument, Arrays.hashCode(resolvedParameters), continuation);
+    return Objects.hash(method, target, argument, Arrays.hashCode(resolvedParameters));
   }
 
   @Override
   public String toString() {
-    return "DefaultMethodInvocation[method="
-        + method
-        + ", target="
-        + target
-        + ", argument="
-        + argument
-        + ", resolvedParameters="
-        + Arrays.toString(resolvedParameters)
-        + ", continuation="
-        + continuation
+    // Render the invoked method only. Argument and resolved parameters are deliberately
+    // excluded because they may contain secrets, tokens, or PII — toString is often
+    // written to logs unintentionally.
+    return "MethodInvocation["
+        + method.getDeclaringClass().getSimpleName()
+        + "."
+        + method.getName()
         + "]";
   }
 }

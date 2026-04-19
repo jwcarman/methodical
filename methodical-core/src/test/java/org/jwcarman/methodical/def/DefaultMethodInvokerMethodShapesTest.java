@@ -65,6 +65,92 @@ class DefaultMethodInvokerMethodShapesTest {
     assertThat(invoker.invoke("hi")).isEqualTo("handled: hi");
   }
 
+  @Test
+  void interceptor_sees_bridge_method_when_bridge_was_passed_to_factory() throws Exception {
+    Method bridge = StringHandler.class.getMethod("handle", Object.class);
+    java.util.concurrent.atomic.AtomicReference<Method> seen =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    var invoker =
+        factory.create(
+            bridge,
+            new StringHandler(),
+            String.class,
+            cfg ->
+                cfg.interceptor(
+                    invocation -> {
+                      seen.set(invocation.method());
+                      return invocation.proceed();
+                    }));
+    assertThat(invoker.invoke("hi")).isEqualTo("handled: hi");
+    assertThat(seen.get()).isEqualTo(bridge);
+    assertThat(seen.get().isBridge()).isTrue();
+  }
+
+  // --- covariant-return bridge ---
+
+  public abstract static class AnimalFactory {
+    public abstract Number make();
+  }
+
+  public static class IntegerFactory extends AnimalFactory {
+    @Override
+    public Integer make() { // covariant return
+      return 42;
+    }
+  }
+
+  @Test
+  void covariant_return_bridge_dispatches_to_concrete_override() throws Exception {
+    Method bridge = IntegerFactory.class.getMethod("make");
+    // getMethod returns the bridge from the supertype perspective — it has return type Number
+    // and isBridge() = true. Invoking it reflectively lands on the Integer-returning override.
+    MethodInvoker<Object> invoker = factory.create(bridge, new IntegerFactory(), Object.class);
+    assertThat(invoker.invoke(new Object())).isEqualTo(42);
+  }
+
+  @Test
+  void covariant_return_non_bridge_override_also_dispatches() throws Exception {
+    Method concrete = IntegerFactory.class.getDeclaredMethod("make");
+    assertThat(concrete.isBridge()).isFalse();
+    assertThat(concrete.getReturnType()).isEqualTo(Integer.class);
+    MethodInvoker<Object> invoker = factory.create(concrete, new IntegerFactory(), Object.class);
+    assertThat(invoker.invoke(new Object())).isEqualTo(42);
+  }
+
+  // --- bridge through a multi-level generic hierarchy ---
+
+  public interface Processor<I, O> {
+    O process(I input);
+  }
+
+  public abstract static class StringInputProcessor<O> implements Processor<String, O> {}
+
+  public static class StringToIntProcessor extends StringInputProcessor<Integer> {
+    @Override
+    public Integer process(@Argument String input) {
+      return input.length();
+    }
+  }
+
+  @Test
+  void multi_level_generic_hierarchy_bridge_dispatches() throws Exception {
+    // getMethod from the Processor interface view returns a bridge.
+    Method bridge = StringToIntProcessor.class.getMethod("process", Object.class);
+    assertThat(bridge.isBridge()).isTrue();
+    MethodInvoker<String> invoker =
+        factory.create(bridge, new StringToIntProcessor(), String.class);
+    assertThat(invoker.invoke("hello")).isEqualTo(5);
+  }
+
+  @Test
+  void multi_level_generic_hierarchy_non_bridge_dispatches() throws Exception {
+    Method concrete = StringToIntProcessor.class.getDeclaredMethod("process", String.class);
+    assertThat(concrete.isBridge()).isFalse();
+    MethodInvoker<String> invoker =
+        factory.create(concrete, new StringToIntProcessor(), String.class);
+    assertThat(invoker.invoke("hello")).isEqualTo(5);
+  }
+
   // --- inherited methods ---
 
   public static class Base {
