@@ -18,14 +18,14 @@ Pluggable reflection-based method invocation for Java. Resolve method arguments 
 ## Quick Start
 
 ```java
-// Create a factory with resolvers
-var factory = new DefaultMethodInvokerFactory(List.of(
-    new Jackson3ParameterResolver(objectMapper)
-));
+// Factory is stateless — all per-invoker configuration flows through the customizer.
+var factory = new DefaultMethodInvokerFactory();
 
-// Create an invoker for a specific method
+// Create an invoker for a specific method, registering a resolver inline.
 Method method = MyService.class.getMethod("greet", String.class);
-MethodInvoker<JsonNode> invoker = factory.create(method, myService, JsonNode.class);
+MethodInvoker<JsonNode> invoker = factory.create(
+    method, myService, JsonNode.class,
+    cfg -> cfg.resolver(new Jackson3ParameterResolver(objectMapper)));
 
 // Invoke with JSON arguments
 JsonNode params = objectMapper.readTree("{\"name\": \"World\"}");
@@ -63,15 +63,20 @@ public String process(@Argument Map<String, Object> raw) { ... }
 
 The factory validates at `create(...)` time that the parameter type is assignable from the argument type, throwing `ParameterResolutionException` if not. Generic-aware: `@Argument Map<String, String>` will reject an argument type of `Map<String, Object>`.
 
-## Per-Invoker Resolvers
+## Per-Invoker Configuration
 
-Register resolvers for a single invoker without mutating the factory. These are tried *before* factory-level resolvers:
+Every invoker is configured through a `Consumer<MethodInvokerConfig<A>>` customizer. Resolvers and interceptors are added in registration order — the first matching resolver wins, and interceptors run outermost-first around the reflective call:
 
 ```java
 MethodInvoker<Request> invoker = factory.create(
     method, target, TypeRef.of(Request.class),
-    List.of(new SessionResolver(), new AuthResolver()));
+    cfg -> cfg
+        .resolver(new SessionResolver())
+        .resolver(new AuthResolver())
+        .interceptor(new AuditInterceptor()));
 ```
+
+The factory itself holds no ambient resolvers or interceptors — everything you want applied to an invoker goes through the customizer. This keeps the core framework-neutral; the Spring Boot starter provides beans (see below), and callers compose customizers however they like.
 
 ## Parameter Name Override
 
@@ -89,11 +94,11 @@ The resolver sees `"user_name"` instead of `"name"` when looking up the value.
 
 | Module | Description |
 |--------|-------------|
-| `methodical-core` | Core API: `MethodInvokerFactory`, `ParameterResolver<A>`, `MethodValidatorFactory`, `@Named` |
+| `methodical-core` | Core API: `MethodInvokerFactory`, `ParameterResolver<A>`, `MethodInterceptor<A>`, `MethodInvokerConfig<A>`, `@Named`, `@Argument` |
 | `methodical-jackson3` | Jackson 3 (`tools.jackson`) parameter resolver |
 | `methodical-jackson2` | Jackson 2 (`com.fasterxml.jackson`) parameter resolver |
 | `methodical-gson` | Gson parameter resolver |
-| `methodical-jakarta-validation` | Jakarta Bean Validation integration (`@NotNull`, `@NotBlank`, etc. on invoked-method parameters and return values) |
+| `methodical-jakarta-validation` | Jakarta Bean Validation interceptor (`@NotNull`, `@NotBlank`, etc. on invoked-method parameters and return values) |
 | `methodical-autoconfigure` | Spring Boot auto-configuration |
 | `methodical-spring-boot-starter` | Starter pulling in core + autoconfigure |
 | `methodical-bom` | Bill of materials for dependency management |
@@ -128,11 +133,51 @@ And a JSON module (whichever matches your Spring Boot version):
 </dependency>
 ```
 
-Auto-configuration detects which JSON library is on the classpath and registers the appropriate resolver at lowest priority (catch-all). Custom resolvers registered as Spring beans take precedence.
+Auto-configuration registers a `MethodInvokerFactory` bean along with a `ParameterResolver` bean for whichever JSON module is on the classpath. Attach resolvers and interceptors to individual invokers via the customizer — the Spring Boot starter does not auto-wire context beans into every invoker; explicit composition is the pattern:
+
+```java
+@Bean
+MethodInvoker<JsonNode> greetInvoker(
+    MethodInvokerFactory factory,
+    Jackson3ParameterResolver jsonResolver,
+    JakartaValidationInterceptor validation,
+    MyService target) throws Exception {
+  Method m = MyService.class.getMethod("greet", String.class);
+  return factory.create(m, target, JsonNode.class,
+      cfg -> cfg.resolver(jsonResolver).interceptor(validation));
+}
+```
+
+## Interceptors
+
+`MethodInterceptor<A>` wraps the reflective invocation. An interceptor observes the `MethodInvocation`, decides whether and when to call `proceed()`, and may short-circuit, transform, retry, or wrap the call with cross-cutting behavior (timing, auth, tracing, scoped-value binding, validation).
+
+```java
+MethodInterceptor<Object> timing = invocation -> {
+  long start = System.nanoTime();
+  try {
+    return invocation.proceed();
+  } finally {
+    metrics.record(invocation.method(), System.nanoTime() - start);
+  }
+};
+
+MethodInvoker<Request> invoker = factory.create(
+    method, target, Request.class,
+    cfg -> cfg.interceptor(timing));
+```
+
+Interceptors run in **registration order** — first added is outermost, last added runs closest to the reflective call. There are no built-in interceptors; every cross-cutting concern is opt-in via the customizer.
+
+The `MethodInterceptors` helper class provides common patterns:
+
+- `MethodInterceptors.before(Consumer<MethodInvocation<? extends A>>)` — run an action before `proceed()`.
+- `MethodInterceptors.onSuccess(BiConsumer<MethodInvocation<? extends A>, Object>)` — observe the return value on normal completion; skipped if the chain throws.
+- `MethodInterceptors.scopedValue(ScopedValue<T>, Function<..., Optional<T>>)` — bind a `ScopedValue` around the invocation when the supplier returns a value; skip binding on `Optional.empty()`.
 
 ## Jakarta Bean Validation
 
-Add `methodical-jakarta-validation` to validate method parameters and return values with standard Jakarta constraints (`@NotNull`, `@NotBlank`, `@Size`, `@Valid` cascades, etc.). Validation runs around every reflective invocation — parameters before the call, return value after.
+Add `methodical-jakarta-validation` to validate method parameters and return values with standard Jakarta constraints (`@NotNull`, `@NotBlank`, `@Size`, `@Valid` cascades, etc.). Validation is a `MethodInterceptor` — parameters are validated before `proceed()`; return value after.
 
 ```xml
 <dependency>
@@ -151,12 +196,18 @@ You also need a Jakarta Validation provider at runtime. In a Spring Boot app, `s
 </dependency>
 ```
 
-Then just annotate:
+Annotate the invoked method and register the interceptor on the invoker:
 
 ```java
 public User createUser(@NotBlank String name, @Valid @NotNull Address address) {
     // ...
 }
+
+MethodInvoker<JsonNode> invoker = factory.create(
+    method, userService, JsonNode.class,
+    cfg -> cfg
+        .resolver(jsonResolver)
+        .interceptor(jakartaValidationInterceptor));
 ```
 
 Invalid input throws `jakarta.validation.ConstraintViolationException` from `MethodInvoker.invoke(...)`.
@@ -184,11 +235,15 @@ Wire it manually:
 
 ```java
 Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-JakartaMethodValidatorFactory validatorFactory = new JakartaMethodValidatorFactory(validator);
-DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory(resolvers, validatorFactory);
+JakartaValidationInterceptor validation = new JakartaValidationInterceptor(validator);
+
+var factory = new DefaultMethodInvokerFactory();
+MethodInvoker<Request> invoker = factory.create(
+    method, target, Request.class,
+    cfg -> cfg.interceptor(validation));
 ```
 
-The autoconfig module registers `JakartaMethodValidatorFactory` as a bean whenever both `jakarta.validation.Validator` is on the classpath and a `Validator` bean is present — the no-op fallback (`NoOpMethodValidatorFactory`) wins when validation isn't wired up, so the starter alone imposes zero validation overhead.
+In a Spring Boot app, `JakartaValidationAutoConfiguration` registers a `JakartaValidationInterceptor` bean whenever `jakarta.validation.Validator` is on the classpath and a `Validator` bean is present. Attach it to invokers via the customizer; nothing is wired automatically into every invoker.
 
 ## Writing a Custom Resolver
 
@@ -218,11 +273,11 @@ Key `ParameterInfo` helpers:
 - `name()` — resolved name (honors `@Named`).
 - `index()` — positional index.
 
-**Dispatch order:** per-invoker resolvers → factory-level resolvers. Within each group, the first resolver whose `supports()` returns `true` wins. The type parameter on `ParameterResolver<A>` is the *argument* type (what's passed to `MethodInvoker.invoke(A)`), and the factory matches resolvers against the invoker's `TypeRef<A>` — so a `ParameterResolver<Map<String,String>>` only matches invokers whose argument type is assignable to `Map<String,String>`.
+**Dispatch order:** resolvers are tried in registration order — the first whose `supports()` returns `true` wins. The factory appends a built-in `@Argument` fallback after any customizer-added resolvers. The type parameter on `ParameterResolver<A>` is the *argument* type (what's passed to `MethodInvoker.invoke(A)`); the compile-time variance `? super A` on `MethodInvokerConfig.resolver(...)` lets generic resolvers (e.g., `ParameterResolver<Object>`) apply to narrower argument types.
 
 **Fail-fast:** if no resolver matches a parameter, the factory throws `ParameterResolutionException` at `create(...)` time with a message listing what was tried. No silent nulls at invoke time.
 
-Register as a Spring bean — it's automatically picked up by the factory. Use `@Order` to control priority (lower values = higher priority). JSON resolvers run at `Ordered.LOWEST_PRECEDENCE` as the fallback.
+**Spring Boot:** register your resolver as a Spring bean to make it available in the context. Compose it into invokers via the customizer — Spring Boot does not wire resolver beans into every invoker automatically.
 
 ## Exception Handling
 

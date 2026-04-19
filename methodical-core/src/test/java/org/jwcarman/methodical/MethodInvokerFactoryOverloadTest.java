@@ -18,7 +18,6 @@ package org.jwcarman.methodical;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.reflect.Method;
-import java.util.List;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
@@ -53,34 +52,45 @@ class MethodInvokerFactoryOverloadTest {
     return Greeter.class.getMethod("greet", String.class);
   }
 
-  @Test
-  void create_with_class_only() throws Exception {
-    MethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of(new StringResolver()));
-    var invoker = factory.create(greetMethod(), new Greeter(), String.class);
-    assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
-  }
+  private final MethodInvokerFactory factory = new DefaultMethodInvokerFactory();
 
   @Test
-  void create_with_class_and_extras() throws Exception {
-    MethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of());
-    var invoker =
-        factory.create(greetMethod(), new Greeter(), String.class, List.of(new StringResolver()));
-    assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
-  }
-
-  @Test
-  void create_with_type_ref_only() throws Exception {
-    MethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of(new StringResolver()));
-    var invoker = factory.create(greetMethod(), new Greeter(), TypeRef.of(String.class));
-    assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
-  }
-
-  @Test
-  void create_with_type_ref_and_extras() throws Exception {
-    MethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of());
+  void create_with_class_only_and_customizer() throws Exception {
     var invoker =
         factory.create(
-            greetMethod(), new Greeter(), TypeRef.of(String.class), List.of(new StringResolver()));
+            greetMethod(), new Greeter(), String.class, cfg -> cfg.resolver(new StringResolver()));
     assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
+  }
+
+  @Test
+  void create_with_type_ref_and_customizer() throws Exception {
+    var invoker =
+        factory.create(
+            greetMethod(),
+            new Greeter(),
+            TypeRef.of(String.class),
+            cfg -> cfg.resolver(new StringResolver()));
+    assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
+  }
+
+  @Test
+  void create_with_class_only_no_customizer_uses_argument_fallback() throws Exception {
+    // Using @Argument means no resolver needed; zero-customizer overloads work.
+    Method m = ArgMethod.class.getMethod("m", String.class);
+    var invoker = factory.create(m, new ArgMethod(), String.class);
+    assertThat(invoker.invoke("raw")).isEqualTo("got raw");
+  }
+
+  @Test
+  void create_with_type_ref_no_customizer_uses_argument_fallback() throws Exception {
+    Method m = ArgMethod.class.getMethod("m", String.class);
+    var invoker = factory.create(m, new ArgMethod(), TypeRef.of(String.class));
+    assertThat(invoker.invoke("raw")).isEqualTo("got raw");
+  }
+
+  public static class ArgMethod {
+    public String m(@Argument String s) {
+      return "got " + s;
+    }
   }
 }

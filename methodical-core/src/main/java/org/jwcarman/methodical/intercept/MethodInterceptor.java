@@ -13,20 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jwcarman.methodical.autoconfigure;
+package org.jwcarman.methodical.intercept;
 
-import org.jwcarman.methodical.MethodInvokerFactory;
-import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.annotation.Bean;
+/**
+ * Intercepts a method invocation. Implementations decide whether and when to call {@link
+ * MethodInvocation#proceed()} to continue the chain.
+ *
+ * <p>Interceptors registered on a {@link org.jwcarman.methodical.MethodInvokerConfig} run in
+ * registration order: the first interceptor added is the outermost and runs first; the last
+ * interceptor added runs closest to the reflective method invocation.
+ */
+@FunctionalInterface
+public interface MethodInterceptor<A> {
 
-@AutoConfiguration
-public class MethodicalAutoConfiguration {
-
-  @Bean
-  @ConditionalOnMissingBean
-  public MethodInvokerFactory methodInvokerFactory() {
-    return new DefaultMethodInvokerFactory();
-  }
+  Object intercept(MethodInvocation<? extends A> invocation);
 }

@@ -16,29 +16,15 @@
 package org.jwcarman.methodical.autoconfigure;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
-import jakarta.validation.constraints.NotBlank;
-import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.Argument;
-import org.jwcarman.methodical.MethodInvoker;
-import org.jwcarman.methodical.MethodInvokerFactory;
-import org.jwcarman.methodical.MethodValidatorFactory;
-import org.jwcarman.methodical.jakarta.JakartaMethodValidatorFactory;
+import org.jwcarman.methodical.jakarta.JakartaValidationInterceptor;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class JakartaValidationAutoConfigurationTest {
-
-  static class Greeter {
-    public String greet(@Argument @NotBlank String name) {
-      return "hello " + name;
-    }
-  }
 
   private final ApplicationContextRunner contextRunner =
       new ApplicationContextRunner()
@@ -47,39 +33,15 @@ class JakartaValidationAutoConfigurationTest {
                   JakartaValidationAutoConfiguration.class, MethodicalAutoConfiguration.class));
 
   @Test
-  void registers_jakarta_validator_factory_when_validator_bean_present() {
+  void registers_jakarta_validation_interceptor_when_validator_present() {
     contextRunner
         .withBean(Validator.class, () -> Validation.buildDefaultValidatorFactory().getValidator())
-        .run(
-            context -> {
-              assertThat(context).hasSingleBean(JakartaMethodValidatorFactory.class);
-              assertThat(context.getBean(MethodValidatorFactory.class))
-                  .isInstanceOf(JakartaMethodValidatorFactory.class);
-            });
+        .run(context -> assertThat(context).hasSingleBean(JakartaValidationInterceptor.class));
   }
 
   @Test
-  void method_invoker_factory_uses_jakarta_validator_when_wired() {
-    contextRunner
-        .withBean(Validator.class, () -> Validation.buildDefaultValidatorFactory().getValidator())
-        .run(
-            context -> {
-              MethodInvokerFactory factory = context.getBean(MethodInvokerFactory.class);
-              Method m = Greeter.class.getDeclaredMethod("greet", String.class);
-              MethodInvoker<String> invoker = factory.create(m, new Greeter(), String.class);
-              assertThat(invoker.invoke("world")).isEqualTo("hello world");
-              assertThatThrownBy(() -> invoker.invoke(""))
-                  .isInstanceOf(ConstraintViolationException.class);
-            });
-  }
-
-  @Test
-  void falls_back_to_no_op_validator_when_no_validator_bean() {
+  void no_interceptor_when_validator_missing() {
     contextRunner.run(
-        context -> {
-          assertThat(context).doesNotHaveBean(JakartaMethodValidatorFactory.class);
-          assertThat(context.getBean(MethodValidatorFactory.class))
-              .isSameAs(MethodValidatorFactory.NO_OP);
-        });
+        context -> assertThat(context).doesNotHaveBean(JakartaValidationInterceptor.class));
   }
 }

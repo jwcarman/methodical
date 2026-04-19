@@ -20,9 +20,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import jakarta.validation.constraints.NotBlank;
 import java.lang.reflect.Method;
-import java.util.List;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
@@ -40,11 +40,11 @@ class JakartaValidationIntegrationTest {
   }
 
   private MethodInvoker<String> buildInvoker() throws Exception {
-    JakartaMethodValidatorFactory vf =
-        new JakartaMethodValidatorFactory(Validation.buildDefaultValidatorFactory().getValidator());
-    DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory(List.of(), vf);
+    Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+    JakartaValidationInterceptor interceptor = new JakartaValidationInterceptor(validator);
+    DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory();
     Method m = Greeter.class.getDeclaredMethod("greet", String.class);
-    return factory.create(m, new Greeter(), String.class);
+    return factory.create(m, new Greeter(), String.class, cfg -> cfg.interceptor(interceptor));
   }
 
   @Test

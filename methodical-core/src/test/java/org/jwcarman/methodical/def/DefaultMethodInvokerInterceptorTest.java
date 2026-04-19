@@ -1,0 +1,200 @@
+/*
+ * Copyright © 2026 James Carman
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.jwcarman.methodical.def;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.DisplayNameGeneration;
+import org.junit.jupiter.api.DisplayNameGenerator;
+import org.junit.jupiter.api.Test;
+import org.jwcarman.methodical.Argument;
+import org.jwcarman.methodical.MethodInvoker;
+import org.jwcarman.methodical.intercept.MethodInterceptor;
+
+/**
+ * Exercises interceptor semantics at the {@code MethodInvokerFactory.create(..., customizer)}
+ * boundary.
+ */
+@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
+class DefaultMethodInvokerInterceptorTest {
+
+  public static class Greeter {
+    public String greet(@Argument String name) {
+      return "hello " + name;
+    }
+  }
+
+  private final DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory();
+
+  private MethodInvoker<String> build(
+      java.util.function.Consumer<org.jwcarman.methodical.MethodInvokerConfig<String>> customizer)
+      throws Exception {
+    Method m = Greeter.class.getMethod("greet", String.class);
+    return factory.create(m, new Greeter(), String.class, customizer);
+  }
+
+  @Test
+  void no_interceptors_invokes_method_directly() throws Exception {
+    MethodInvoker<String> invoker = build(cfg -> {});
+    assertThat(invoker.invoke("world")).isEqualTo("hello world");
+  }
+
+  @Test
+  void single_interceptor_sees_method_target_argument_and_parameters() throws Exception {
+    AtomicReference<Method> seenMethod = new AtomicReference<>();
+    AtomicReference<Object> seenTarget = new AtomicReference<>();
+    AtomicReference<String> seenArgument = new AtomicReference<>();
+    AtomicReference<Object[]> seenParameters = new AtomicReference<>();
+
+    MethodInterceptor<String> interceptor =
+        invocation -> {
+          seenMethod.set(invocation.method());
+          seenTarget.set(invocation.target());
+          seenArgument.set(invocation.argument());
+          seenParameters.set(invocation.resolvedParameters());
+          return invocation.proceed();
+        };
+
+    MethodInvoker<String> invoker = build(cfg -> cfg.interceptor(interceptor));
+    assertThat(invoker.invoke("world")).isEqualTo("hello world");
+    assertThat(seenMethod.get()).isEqualTo(Greeter.class.getMethod("greet", String.class));
+    assertThat(seenTarget.get()).isInstanceOf(Greeter.class);
+    assertThat(seenArgument.get()).isEqualTo("world");
+    assertThat(seenParameters.get()).containsExactly("world");
+  }
+
+  @Test
+  void multiple_interceptors_run_in_registration_order_outermost_first() throws Exception {
+    List<String> log = new ArrayList<>();
+    MethodInterceptor<String> first = named("first", log);
+    MethodInterceptor<String> second = named("second", log);
+    MethodInterceptor<String> third = named("third", log);
+
+    MethodInvoker<String> invoker =
+        build(cfg -> cfg.interceptor(first).interceptor(second).interceptor(third));
+    invoker.invoke("w");
+
+    assertThat(log)
+        .containsExactly(
+            "first:before",
+            "second:before",
+            "third:before",
+            "third:after",
+            "second:after",
+            "first:after");
+  }
+
+  @Test
+  void interceptor_short_circuit_skips_method_and_downstream() throws Exception {
+    AtomicInteger innerCalls = new AtomicInteger();
+    MethodInterceptor<String> inner =
+        invocation -> {
+          innerCalls.incrementAndGet();
+          return invocation.proceed();
+        };
+    MethodInterceptor<String> outer = invocation -> "short-circuited";
+
+    MethodInvoker<String> invoker = build(cfg -> cfg.interceptor(outer).interceptor(inner));
+    assertThat(invoker.invoke("world")).isEqualTo("short-circuited");
+    assertThat(innerCalls.get()).isZero();
+  }
+
+  @Test
+  void interceptor_throwing_propagates_and_skips_downstream() throws Exception {
+    AtomicInteger innerCalls = new AtomicInteger();
+    MethodInterceptor<String> inner =
+        invocation -> {
+          innerCalls.incrementAndGet();
+          return invocation.proceed();
+        };
+    MethodInterceptor<String> outer =
+        invocation -> {
+          throw new IllegalStateException("reject");
+        };
+
+    MethodInvoker<String> invoker = build(cfg -> cfg.interceptor(outer).interceptor(inner));
+    assertThatThrownBy(() -> invoker.invoke("w"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("reject");
+    assertThat(innerCalls.get()).isZero();
+  }
+
+  @Test
+  void interceptor_can_call_proceed_multiple_times_for_retry() throws Exception {
+    List<String> log = new ArrayList<>();
+    MethodInterceptor<String> retry =
+        invocation -> {
+          log.add("attempt");
+          invocation.proceed();
+          log.add("attempt");
+          Object last = invocation.proceed();
+          log.add("attempt");
+          return invocation.proceed() + "|" + last;
+        };
+
+    MethodInvoker<String> invoker = build(cfg -> cfg.interceptor(retry));
+    Object result = invoker.invoke("w");
+    assertThat(log).containsExactly("attempt", "attempt", "attempt");
+    assertThat(result).isEqualTo("hello w|hello w");
+  }
+
+  @Test
+  void interceptor_can_transform_return_value() throws Exception {
+    MethodInterceptor<String> upper = invocation -> ((String) invocation.proceed()).toUpperCase();
+    MethodInvoker<String> invoker = build(cfg -> cfg.interceptor(upper));
+    assertThat(invoker.invoke("world")).isEqualTo("HELLO WORLD");
+  }
+
+  @Test
+  void parameters_mutation_in_interceptor_does_not_affect_method_call() throws Exception {
+    MethodInterceptor<String> mutator =
+        invocation -> {
+          Object[] params = invocation.resolvedParameters();
+          params[0] = "TAMPERED";
+          return invocation.proceed();
+        };
+    MethodInvoker<String> invoker = build(cfg -> cfg.interceptor(mutator));
+    assertThat(invoker.invoke("world")).isEqualTo("hello world");
+  }
+
+  @Test
+  void super_typed_interceptor_accepted_for_narrow_argument_type() throws Exception {
+    AtomicInteger hits = new AtomicInteger();
+    MethodInterceptor<Object> generic =
+        invocation -> {
+          hits.incrementAndGet();
+          return invocation.proceed();
+        };
+    MethodInvoker<String> invoker = build(cfg -> cfg.interceptor(generic));
+    invoker.invoke("x");
+    assertThat(hits.get()).isEqualTo(1);
+  }
+
+  private static MethodInterceptor<String> named(String name, List<String> log) {
+    return invocation -> {
+      log.add(name + ":before");
+      Object result = invocation.proceed();
+      log.add(name + ":after");
+      return result;
+    };
+  }
+}

@@ -23,7 +23,6 @@ import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 import org.jwcarman.methodical.MethodInvoker;
-import org.jwcarman.methodical.MethodValidator;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
@@ -59,7 +58,7 @@ class DefaultMethodInvokerAccessibilityTest {
 
     MethodInvoker<String> invoker =
         new DefaultMethodInvoker<>(
-            method, target, new ParameterInfo[] {info}, List.of(resolver), MethodValidator.NO_OP);
+            method, target, new ParameterInfo[] {info}, List.of(resolver), List.of());
 
     assertThat(invoker.invoke("hello")).isEqualTo("got: hello");
   }

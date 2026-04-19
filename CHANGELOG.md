@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-19
+
+### Breaking changes
+
+- **`MethodValidator` / `MethodValidatorFactory` SPI removed from `methodical-core`.** Validation is no longer a first-class concern in the core module; it is now one of many `MethodInterceptor`s. Users who depended on `MethodValidator` directly must migrate to the interceptor SPI.
+- **`MethodInvokerFactory.create(...)` overloads replaced.** The `List<ParameterResolver<? super A>> extraResolvers` parameter is gone; every `create(...)` now takes a `Consumer<MethodInvokerConfig<A>>` customizer that registers resolvers and interceptors. Migrate `List.of(r1, r2)` call sites to `cfg -> cfg.resolver(r1).resolver(r2)`.
+- **`DefaultMethodInvokerFactory` is stateless.** Its two constructors (`DefaultMethodInvokerFactory(List<ParameterResolver<?>>)` and `DefaultMethodInvokerFactory(List<ParameterResolver<?>>, MethodValidatorFactory)`) have been removed in favor of a single no-arg constructor. Any resolver previously registered at factory construction must now be registered per-invoker via the customizer. The factory no longer holds any ambient state beyond the built-in `@Argument` fallback.
+- **`JakartaMethodValidator` / `JakartaMethodValidatorFactory` removed.** Replaced by a single `JakartaValidationInterceptor` class in `methodical-jakarta-validation`. Wire it via `cfg.interceptor(new JakartaValidationInterceptor(validator))` on each invoker.
+- **Spring Boot auto-configuration simplified.** `MethodicalAutoConfiguration` now provides a bare `MethodInvokerFactory` bean (no factory-level resolver wiring). `JakartaValidationAutoConfiguration` provides a `JakartaValidationInterceptor` bean when `jakarta.validation.Validator` is present. Callers attach context beans to individual invokers via the customizer — nothing is auto-wired into every invoker.
+
+### Added
+
+- **`MethodInterceptor<A>` SPI** in `methodical-core` — a single-method functional interface `Object intercept(MethodInvocation<? extends A> invocation)`. Interceptors observe the `MethodInvocation` and call `invocation.proceed()` to continue the chain; they may short-circuit, throw, wrap, retry (via repeated `proceed()` calls), or transform the return value.
+- **`MethodInvocation<A>`** — view of a single invocation passed to each interceptor: `method()`, `target()`, `argument()`, `resolvedParameters()` (defensive copy on each call), and `proceed()`.
+- **`MethodInvokerConfig<A>`** — per-invoker configuration surface with `resolver(ParameterResolver<? super A>)` and `interceptor(MethodInterceptor<? super A>)` builder-style methods. Passed to the customizer lambda in `MethodInvokerFactory.create(...)`.
+- **`MethodInterceptors` helpers** — static factory methods for common patterns: `before(Consumer)`, `onSuccess(BiConsumer)`, and `scopedValue(ScopedValue<T>, Function<..., Optional<T>>)` for binding a `ScopedValue` around the chain.
+- **`MethodInvocation.of(...)`** — public static factory for constructing invocations directly in tests or custom dispatch code.
+- **`JakartaValidationInterceptor`** — direct replacement for the removed Jakarta validator SPI. Implements `MethodInterceptor<Object>` so it can be registered against any `MethodInvokerConfig<A>`. Performs parameter and return-value validation; skips static methods and null targets; honors `@ValidationGroups` from method or class.
+
+### Changed
+
+- **Interceptor chain order is strictly registration order.** The first interceptor added via `cfg.interceptor(...)` is the outermost (runs first); the last added runs closest to the reflective method call. No priority, no reordering.
+- **`DefaultMethodInvoker` precomputes the chain at construction time.** Interceptor wrapping happens once per invoker, not per invocation. Per-call cost is one `MethodInvocation` allocation per interceptor.
+
+### Documentation
+
+- README rewritten around the customizer pattern, with a new "Interceptors" section covering the SPI and the `MethodInterceptors` helpers.
+- `docs/plans/2026-04-19-interceptors-design.md` — design document captured before implementation.
+
+### Requirements
+
+- Java 25+ (unchanged). The `MethodInterceptors.scopedValue` helper uses finalized `ScopedValue` APIs.
+
 ## [0.5.0] - 2026-04-18
 
 ### Added
@@ -104,7 +137,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.5.0...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.6.0...HEAD
+[0.6.0]: https://github.com/jwcarman/methodical/releases/tag/0.6.0
 [0.5.0]: https://github.com/jwcarman/methodical/releases/tag/0.5.0
 [0.4.0]: https://github.com/jwcarman/methodical/releases/tag/0.4.0
 [0.3.0]: https://github.com/jwcarman/methodical/releases/tag/0.3.0

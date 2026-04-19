@@ -16,74 +16,40 @@
 package org.jwcarman.methodical;
 
 import java.lang.reflect.Method;
-import java.util.List;
-import org.jwcarman.methodical.param.ParameterResolver;
+import java.util.function.Consumer;
 import org.jwcarman.specular.TypeRef;
 
 /** Factory for creating pre-built {@link MethodInvoker} instances. */
 public interface MethodInvokerFactory {
 
-  /**
-   * Creates a {@link MethodInvoker} using only the factory-level resolvers.
-   *
-   * @param method the method to invoke
-   * @param target the target object to invoke the method on
-   * @param argumentType the type of argument passed at call time
-   * @param <A> the argument type
-   * @return a pre-built invoker
-   */
+  /** Creates a {@link MethodInvoker} with no per-invoker configuration. */
   default <A> MethodInvoker<A> create(Method method, Object target, Class<A> argumentType) {
-    return create(method, target, TypeRef.of(argumentType), List.of());
+    return create(method, target, TypeRef.of(argumentType), cfg -> {});
+  }
+
+  /** Creates a {@link MethodInvoker} with a parameterized argument type and no configuration. */
+  default <A> MethodInvoker<A> create(Method method, Object target, TypeRef<A> argumentType) {
+    return create(method, target, argumentType, cfg -> {});
   }
 
   /**
-   * Creates a {@link MethodInvoker} with additional per-invoker resolvers that are tried ahead of
-   * the factory-level resolvers.
-   *
-   * @param method the method to invoke
-   * @param target the target object to invoke the method on
-   * @param argumentType the type of argument passed at call time
-   * @param extraResolvers per-invoker resolvers, tried before factory-level resolvers
-   * @param <A> the argument type
-   * @return a pre-built invoker
+   * Creates a {@link MethodInvoker} with per-invoker configuration applied via {@code customizer}.
    */
   default <A> MethodInvoker<A> create(
       Method method,
       Object target,
       Class<A> argumentType,
-      List<ParameterResolver<? super A>> extraResolvers) {
-    return create(method, target, TypeRef.of(argumentType), extraResolvers);
+      Consumer<MethodInvokerConfig<A>> customizer) {
+    return create(method, target, TypeRef.of(argumentType), customizer);
   }
 
   /**
-   * Creates a {@link MethodInvoker} with a possibly parameterized argument type, using only the
-   * factory-level resolvers.
-   *
-   * @param method the method to invoke
-   * @param target the target object to invoke the method on
-   * @param argumentType the (possibly parameterized) type of argument passed at call time
-   * @param <A> the argument type
-   * @return a pre-built invoker
-   */
-  default <A> MethodInvoker<A> create(Method method, Object target, TypeRef<A> argumentType) {
-    return create(method, target, argumentType, List.of());
-  }
-
-  /**
-   * Creates a {@link MethodInvoker} with a possibly parameterized argument type and additional
-   * per-invoker resolvers that are tried ahead of the factory-level resolvers. This is the primary
-   * method; all other overloads delegate here.
-   *
-   * @param method the method to invoke
-   * @param target the target object to invoke the method on
-   * @param argumentType the (possibly parameterized) type of argument passed at call time
-   * @param extraResolvers per-invoker resolvers, tried before factory-level resolvers
-   * @param <A> the argument type
-   * @return a pre-built invoker
+   * Primary overload. Creates a {@link MethodInvoker} with a parameterized argument type and
+   * per-invoker configuration applied via {@code customizer}.
    */
   <A> MethodInvoker<A> create(
       Method method,
       Object target,
       TypeRef<A> argumentType,
-      List<ParameterResolver<? super A>> extraResolvers);
+      Consumer<MethodInvokerConfig<A>> customizer);
 }

@@ -18,7 +18,6 @@ package org.jwcarman.methodical;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.reflect.Method;
-import java.util.List;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
@@ -27,7 +26,7 @@ import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
-/** Exercises the per-invoker {@code extraResolvers} list passed to {@code create(...)}. */
+/** Exercises resolvers registered via the per-invoker customizer. */
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class PerInvokerResolverTest {
 
@@ -56,25 +55,30 @@ class PerInvokerResolverTest {
   }
 
   @Test
-  void extra_resolver_wins_over_factory_resolver() throws Exception {
-    var factory = new DefaultMethodInvokerFactory(List.of(new ConstantResolver("factory")));
+  void customizer_resolver_used() throws Exception {
+    var factory = new DefaultMethodInvokerFactory();
     Method method = Greeter.class.getMethod("greet", String.class);
     var invoker =
         factory.create(
             method,
             new Greeter(),
             TypeRef.of(String.class),
-            List.of(new ConstantResolver("invoker")));
-    assertThat(invoker.invoke("ignored")).isEqualTo("Hello, invoker!");
+            cfg -> cfg.resolver(new ConstantResolver("only")));
+    assertThat(invoker.invoke("ignored")).isEqualTo("Hello, only!");
   }
 
   @Test
-  void extra_resolver_used_when_no_factory_resolver_registered() throws Exception {
-    var factory = new DefaultMethodInvokerFactory(List.of());
+  void earlier_registered_resolver_wins() throws Exception {
+    var factory = new DefaultMethodInvokerFactory();
     Method method = Greeter.class.getMethod("greet", String.class);
     var invoker =
         factory.create(
-            method, new Greeter(), TypeRef.of(String.class), List.of(new ConstantResolver("only")));
-    assertThat(invoker.invoke("ignored")).isEqualTo("Hello, only!");
+            method,
+            new Greeter(),
+            TypeRef.of(String.class),
+            cfg ->
+                cfg.resolver(new ConstantResolver("first"))
+                    .resolver(new ConstantResolver("second")));
+    assertThat(invoker.invoke("ignored")).isEqualTo("Hello, first!");
   }
 }

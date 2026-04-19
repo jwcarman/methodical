@@ -16,21 +16,20 @@
 package org.jwcarman.methodical.autoconfigure;
 
 import jakarta.validation.Validator;
-import org.jwcarman.methodical.jakarta.JakartaMethodValidatorFactory;
+import org.jwcarman.methodical.jakarta.JakartaValidationInterceptor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration(
-    before = MethodicalAutoConfiguration.class,
     afterName = "org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration")
-@ConditionalOnClass({Validator.class, JakartaMethodValidatorFactory.class})
+@ConditionalOnClass({Validator.class, JakartaValidationInterceptor.class})
 @ConditionalOnBean(Validator.class)
 public class JakartaValidationAutoConfiguration {
 
   @Bean
-  public JakartaMethodValidatorFactory jakartaMethodValidatorFactory(Validator validator) {
-    return new JakartaMethodValidatorFactory(validator);
+  public JakartaValidationInterceptor jakartaValidationInterceptor(Validator validator) {
+    return new JakartaValidationInterceptor(validator);
   }
 }
