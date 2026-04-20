@@ -52,7 +52,7 @@ record DefaultMethodInvocation<A>(
   public boolean equals(Object other) {
     return other
             instanceof
-            DefaultMethodInvocation<?>(Method m, Object t, Object arg, Object[] params, var _)
+            DefaultMethodInvocation<?>(Method m, Object t, Object arg, Object[] params, _)
         && Objects.equals(method, m)
         && Objects.equals(target, t)
         && Objects.equals(argument, arg)
