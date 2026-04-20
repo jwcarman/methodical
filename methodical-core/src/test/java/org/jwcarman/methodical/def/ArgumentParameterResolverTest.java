@@ -77,7 +77,8 @@ class ArgumentParameterResolverTest {
   @Test
   void bind_throws_when_parameter_has_argument_annotation_but_type_incompatible() {
     var resolver = new ArgumentParameterResolver<Integer>(TypeRef.of(Integer.class));
-    assertThatThrownBy(() -> resolver.bind(infoFor("takesStringWithAnnotation")))
+    ParameterInfo info = infoFor("takesStringWithAnnotation");
+    assertThatThrownBy(() -> resolver.bind(info))
         .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("@Argument")
         .hasMessageContaining("Integer")
@@ -90,8 +91,8 @@ class ArgumentParameterResolverTest {
     // rejects.
     var resolver =
         new ArgumentParameterResolver<Map<String, Object>>(new TypeRef<Map<String, Object>>() {});
-    assertThatThrownBy(() -> resolver.bind(infoFor("takesMapWithAnnotation")))
-        .isInstanceOf(ParameterResolutionException.class);
+    ParameterInfo info = infoFor("takesMapWithAnnotation");
+    assertThatThrownBy(() -> resolver.bind(info)).isInstanceOf(ParameterResolutionException.class);
   }
 
   @Test

@@ -110,8 +110,7 @@ class MethodInvocationTest {
         MethodInvocation.of(method(), target, "x", new Object[] {"x", 1}, () -> "A");
     MethodInvocation<String> b =
         MethodInvocation.of(method(), target, "x", new Object[] {"x", 1}, () -> "B-different");
-    assertThat(a).isEqualTo(b);
-    assertThat(a).hasSameHashCodeAs(b);
+    assertThat(a).isEqualTo(b).hasSameHashCodeAs(b);
   }
 
   @Test
@@ -147,8 +146,7 @@ class MethodInvocationTest {
   void equals_is_false_for_non_method_invocation() throws Exception {
     MethodInvocation<String> a =
         MethodInvocation.of(method(), new Target(), "x", new Object[0], () -> null);
-    assertThat(a).isNotEqualTo("not an invocation");
-    assertThat(a).isNotEqualTo(null);
+    assertThat(a).isNotEqualTo("not an invocation").isNotEqualTo(null);
   }
 
   @Test
@@ -162,9 +160,9 @@ class MethodInvocationTest {
             () -> {
               throw new AssertionError("continuation should not be invoked by toString");
             });
-    String s = inv.toString();
-    assertThat(s).contains("Target").contains("greet");
-    assertThat(s)
+    assertThat(inv.toString())
+        .contains("Target")
+        .contains("greet")
         .doesNotContain("super-secret-password")
         .doesNotContain("another-secret")
         .doesNotContain("Lambda")

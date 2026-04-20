@@ -104,7 +104,8 @@ class Jackson3ParameterResolverTest {
   void shouldThrowMethodInvocationExceptionOnDeserializationError() throws Exception {
     ParameterInfo info = paramInfo("value", 0, int.class);
     JsonNode params = mapper.readTree("{\"value\": \"not a number\"}");
-    assertThatThrownBy(() -> resolver.bind(info).orElseThrow().resolve(params))
+    var binding = resolver.bind(info).orElseThrow();
+    assertThatThrownBy(() -> binding.resolve(params))
         .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("Unable to deserialize parameter");
   }

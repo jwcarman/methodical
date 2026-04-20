@@ -43,21 +43,16 @@ record DefaultMethodInvocation<A>(
     return continuation.get();
   }
 
-  // equals/hashCode/toString define invocation identity over the call data
-  // (method, target, argument, resolvedParameters). The continuation is an
-  // opaque chain-control lambda, not part of what the invocation represents;
-  // it is excluded from identity and from the rendered string.
-
+  /**
+   * Identity is defined by the call data: method, target, argument, resolvedParameters. The
+   * continuation is an opaque chain-control lambda — not part of what the invocation represents —
+   * so it is excluded from equals/hashCode and from toString.
+   */
   @Override
   public boolean equals(Object other) {
     return other
             instanceof
-            DefaultMethodInvocation<?>(
-                Method m,
-                Object t,
-                Object arg,
-                Object[] params,
-                Supplier<Object> _)
+            DefaultMethodInvocation<?>(Method m, Object t, Object arg, Object[] params, var _)
         && Objects.equals(method, m)
         && Objects.equals(target, t)
         && Objects.equals(argument, arg)

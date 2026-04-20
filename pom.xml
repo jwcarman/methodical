@@ -83,6 +83,16 @@
         <sonar.organization>jwcarman</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.projectKey>jwcarman_methodical</sonar.projectKey>
+        <!--
+          Jackson 2 and Jackson 3 resolvers are intentionally parallel adapters over two different
+          Jackson APIs (com.fasterxml.jackson.databind vs tools.jackson.databind). Their shapes
+          match on purpose — the user chooses whichever module matches their Jackson major. Exclude
+          both from copy-paste detection.
+        -->
+        <sonar.cpd.exclusions>
+            methodical-jackson2/src/main/java/org/jwcarman/methodical/jackson2/Jackson2ParameterResolver.java,
+            methodical-jackson3/src/main/java/org/jwcarman/methodical/jackson3/Jackson3ParameterResolver.java
+        </sonar.cpd.exclusions>
     </properties>
 
     <dependencyManagement>
