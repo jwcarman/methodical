@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-19
+
 ### Breaking changes
 
 - **`ParameterResolver<A>` SPI reshaped around per-parameter binding.** The old two-method interface (`boolean supports(ParameterInfo)` + `Object resolve(ParameterInfo, A)`) is replaced by a single method `Optional<Binding<A>> bind(ParameterInfo info)` that returns a pre-bound `ParameterResolver.Binding<A>` (nested type with signature `Object resolve(A argument)`). The resolver decides once, at invoker-build time, whether it applies to a given parameter and — if so — captures all per-parameter state (name, index, resolved type, annotations, reader/parser) into the returned `Binding`. Per-invocation dispatch calls `binding.resolve(argument)` directly, with no `ParameterInfo` traversal.
@@ -182,7 +184,8 @@ public class HeaderResolver implements ParameterResolver<HttpRequest> {
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.6.1...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.7.0...HEAD
+[0.7.0]: https://github.com/jwcarman/methodical/releases/tag/0.7.0
 [0.6.1]: https://github.com/jwcarman/methodical/releases/tag/0.6.1
 [0.6.0]: https://github.com/jwcarman/methodical/releases/tag/0.6.0
 [0.5.0]: https://github.com/jwcarman/methodical/releases/tag/0.5.0
