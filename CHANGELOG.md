@@ -7,15 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-19
+
 ### Breaking changes
 
-- **`MethodInvokerFactory` interface and `DefaultMethodInvokerFactory` class removed.** Replaced by a nested public interface `MethodInvoker.Builder<A>` with `.resolver(...)` / `.interceptor(...)` / `.build()`. The concrete implementation (`DefaultMethodInvokerBuilder`) is package-private; users obtain builders via `MethodInvoker.builder(method, target, argumentType)`.
-- **`MethodInvokerConfig<A>` interface removed.** The separate "config surface without build()" interface is absorbed into `MethodInvoker.Builder<A>`. Helpers that want to accept configuration contributions take `Consumer<MethodInvoker.Builder<A>>` or the builder itself; convention ("don't call build() from inside") replaces the type-system signal.
-- **Package flattened.** `org.jwcarman.methodical.def`, `org.jwcarman.methodical.intercept`, and `org.jwcarman.methodical.param` subpackages are gone. All public and package-private types now live in a single `org.jwcarman.methodical` package. Imports like `org.jwcarman.methodical.intercept.MethodInterceptor` become `org.jwcarman.methodical.MethodInterceptor`.
+- **`MethodInvokerFactory` interface and `DefaultMethodInvokerFactory` class removed.** Replaced by a nested public interface `MethodInvoker.Builder<A>` with `.resolver(...)` / `.interceptor(...)` / `.build()`. The concrete implementation (`DefaultMethodInvokerBuilder`) is package-private; users obtain builders via `MethodInvoker.builder(method, target, argumentType)`. The old factory interface + implementation provided no value over a direct builder for a stateless, single-implementation construction operation.
+- **`MethodInvokerConfig<A>` interface removed.** The separate "config surface without `build()`" interface is absorbed into `MethodInvoker.Builder<A>`. Helpers that want to accept configuration contributions take `Consumer<MethodInvoker.Builder<A>>` or the builder itself; convention ("don't call `build()` from inside the contributor") replaces the type-system signal.
+- **Package flattened.** The `org.jwcarman.methodical.def`, `org.jwcarman.methodical.intercept`, and `org.jwcarman.methodical.param` subpackages are gone. All public and package-private types now live in a single `org.jwcarman.methodical` package. Imports like `org.jwcarman.methodical.intercept.MethodInterceptor` become `org.jwcarman.methodical.MethodInterceptor`; likewise for `ParameterInfo`, `ParameterResolver`, `MethodInvocation`, `MethodInterceptors`.
+- **`methodical-autoconfigure` and `methodical-spring-boot-starter` modules removed.** Methodical now ships as a plain Java library with no Spring Boot coupling. The Maven coordinates `org.jwcarman.methodical:methodical-autoconfigure` and `org.jwcarman.methodical:methodical-spring-boot-starter` no longer exist. The BOM (`methodical-bom`) no longer declares those artifacts. Spring Boot consumers now wire beans themselves — see migration below.
 
 ### Migration
 
-Before:
+Construction (before):
 ```java
 MethodInvokerFactory factory = new DefaultMethodInvokerFactory();
 MethodInvoker<Req> invoker = factory.create(
@@ -23,7 +26,7 @@ MethodInvoker<Req> invoker = factory.create(
     cfg -> cfg.resolver(r).interceptor(i));
 ```
 
-After:
+Construction (after):
 ```java
 MethodInvoker<Req> invoker =
     MethodInvoker.builder(method, target, Req.class)
@@ -32,20 +35,7 @@ MethodInvoker<Req> invoker =
         .build();
 ```
 
-`MethodInvoker.builder(...)` is a static factory on the product interface (same shape as `List.of`, `Stream.of`) returning a `MethodInvoker.Builder<A>`. It is the only supported entry point for construction — the concrete `DefaultMethodInvokerBuilder` is package-private.
-
-### Removed
-
-- **`methodical-autoconfigure` and `methodical-spring-boot-starter` modules removed.** Methodical now ships as a plain Java library with no Spring Boot coupling. The autoconfigure module had shrunk to "provide `new DefaultMethodInvokerFactory()` as a bean" and "provide `new JakartaValidationInterceptor(validator)` when a `Validator` is present" — both reduced to one `@Bean` method of user code after the 0.7.0 binding-based resolver refactor. Consumers who used the starter should depend on `methodical-core` plus whichever JSON / validation module they need, and register any desired beans themselves.
-
-### Breaking changes
-
-- The Maven coordinates `org.jwcarman.methodical:methodical-autoconfigure` and `org.jwcarman.methodical:methodical-spring-boot-starter` no longer exist. Replace with direct dependencies on the specific library modules you need (`methodical-core`, `methodical-jackson3` / `methodical-jackson2` / `methodical-gson`, `methodical-jakarta-validation`).
-- The BOM (`methodical-bom`) no longer declares the two removed artifacts.
-
-### Migration
-
-Before (Spring Boot starter):
+Spring Boot consumers (before — Spring Boot starter):
 ```xml
 <dependency>
   <groupId>org.jwcarman.methodical</groupId>
@@ -54,7 +44,7 @@ Before (Spring Boot starter):
 </dependency>
 ```
 
-After (plain libraries + explicit Spring beans):
+Spring Boot consumers (after — plain libraries + one `@Configuration` class you write yourself):
 ```xml
 <dependency>
   <groupId>org.jwcarman.methodical</groupId>
@@ -77,10 +67,6 @@ After (plain libraries + explicit Spring beans):
 ```java
 @Configuration
 class MethodicalConfig {
-  @Bean MethodInvokerFactory methodInvokerFactory() {
-    return new DefaultMethodInvokerFactory();
-  }
-
   @Bean Jackson3ParameterResolver jsonResolver(ObjectMapper mapper) {
     return new Jackson3ParameterResolver(mapper);
   }
@@ -90,6 +76,12 @@ class MethodicalConfig {
     return new JakartaValidationInterceptor(validator);
   }
 }
+
+// In the class that builds invokers, inject the beans above and call
+//   MethodInvoker.builder(method, target, argType)
+//       .resolver(jsonResolver)
+//       .interceptor(jakartaValidation)
+//       .build();
 ```
 
 ## [0.7.0] - 2026-04-19
@@ -269,7 +261,8 @@ public class HeaderResolver implements ParameterResolver<HttpRequest> {
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.7.0...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.8.0...HEAD
+[0.8.0]: https://github.com/jwcarman/methodical/releases/tag/0.8.0
 [0.7.0]: https://github.com/jwcarman/methodical/releases/tag/0.7.0
 [0.6.1]: https://github.com/jwcarman/methodical/releases/tag/0.6.1
 [0.6.0]: https://github.com/jwcarman/methodical/releases/tag/0.6.0

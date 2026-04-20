@@ -19,9 +19,9 @@ package org.jwcarman.methodical;
  * Intercepts a method invocation. Implementations decide whether and when to call {@link
  * MethodInvocation#proceed()} to continue the chain.
  *
- * <p>Interceptors registered on a {@link org.jwcarman.methodical.MethodInvokerConfig} run in
- * registration order: the first interceptor added is the outermost and runs first; the last
- * interceptor added runs closest to the reflective method invocation.
+ * <p>Interceptors registered on a {@link MethodInvoker.Builder} run in registration order: the
+ * first interceptor added is the outermost and runs first; the last interceptor added runs closest
+ * to the reflective method invocation.
  */
 @FunctionalInterface
 public interface MethodInterceptor<A> {
