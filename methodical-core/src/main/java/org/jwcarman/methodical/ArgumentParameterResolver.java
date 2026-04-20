@@ -13,11 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jwcarman.methodical.def;
+package org.jwcarman.methodical;
 
 import java.util.Optional;
-import org.jwcarman.methodical.Argument;
-import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;

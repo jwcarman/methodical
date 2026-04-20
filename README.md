@@ -18,14 +18,12 @@ Pluggable reflection-based method invocation for Java. Resolve method arguments 
 ## Quick Start
 
 ```java
-// Factory is stateless — all per-invoker configuration flows through the customizer.
-var factory = new DefaultMethodInvokerFactory();
-
-// Create an invoker for a specific method, registering a resolver inline.
+// Create an invoker for a specific method with whatever resolvers and interceptors it needs.
 Method method = MyService.class.getMethod("greet", String.class);
-MethodInvoker<JsonNode> invoker = factory.create(
-    method, myService, JsonNode.class,
-    cfg -> cfg.resolver(new Jackson3ParameterResolver(objectMapper)));
+MethodInvoker<JsonNode> invoker =
+    MethodInvoker.builder(method, myService, JsonNode.class)
+        .resolver(new Jackson3ParameterResolver(objectMapper))
+        .build();
 
 // Invoke with JSON arguments
 JsonNode params = objectMapper.readTree("{\"name\": \"World\"}");
@@ -36,7 +34,7 @@ Object result = invoker.invoke(params);  // "Hello, World!"
 
 1. **`ParameterResolver<A>`** — Resolves method parameters from an argument of type `A`. Multiple resolvers are consulted in order; the first that supports a parameter wins.
 
-2. **`MethodInvokerFactory`** — Inspects a method's parameters at creation time, assigns resolvers, and returns a pre-built `MethodInvoker<A>` with zero per-call reflection overhead.
+2. **`MethodInvoker.Builder<A>`** — Inspects a method's parameters at `build()` time, assigns per-parameter `ParameterResolver.Binding`s, and returns a pre-built `MethodInvoker<A>` with zero per-call reflection overhead. Obtained via `MethodInvoker.builder(method, target, argumentType)`.
 
 3. **`MethodInvoker<A>`** — A lightweight, reusable handle that resolves arguments and invokes the method.
 
@@ -44,11 +42,12 @@ Generic types are carried at runtime via [specular](https://github.com/jwcarman/
 
 ## Generic Argument Types
 
-When the argument type is parameterized (e.g. `Map<String, Object>` for MCP-style tool calls), use a `TypeRef` so the factory can match resolvers generically:
+When the argument type is parameterized (e.g. `Map<String, Object>` for MCP-style tool calls), use a `TypeRef` so resolvers can match generically:
 
 ```java
 MethodInvoker<Map<String, Object>> invoker =
-    factory.create(method, target, new TypeRef<Map<String, Object>>() {});
+    MethodInvoker.builder(method, target, new TypeRef<Map<String, Object>>() {})
+        .build();
 ```
 
 Methodical checks assignability with Java's normal generic rules — `Map<String, String>` is *not* assignable to `Map<String, Object>` (invariance), but `HashMap<String, String>` *is* assignable to `Map<String, String>`.
@@ -65,18 +64,31 @@ The factory validates at `create(...)` time that the parameter type is assignabl
 
 ## Per-Invoker Configuration
 
-Every invoker is configured through a `Consumer<MethodInvokerConfig<A>>` customizer. Resolvers and interceptors are added in registration order — the first matching resolver wins, and interceptors run outermost-first around the reflective call:
+Every invoker is built fluently. Resolvers and interceptors are added in registration order — the first matching resolver wins, and interceptors run outermost-first around the reflective call:
 
 ```java
-MethodInvoker<Request> invoker = factory.create(
-    method, target, TypeRef.of(Request.class),
-    cfg -> cfg
+MethodInvoker<Request> invoker =
+    MethodInvoker.builder(method, target, TypeRef.of(Request.class))
         .resolver(new SessionResolver())
         .resolver(new AuthResolver())
-        .interceptor(new AuditInterceptor()));
+        .interceptor(new AuditInterceptor())
+        .build();
 ```
 
-The factory itself holds no ambient resolvers or interceptors — everything you want applied to an invoker goes through the customizer. This keeps the core framework-neutral: methodical ships as a plain library, with no DI-framework integration built in. Callers compose customizers however they like.
+For helper APIs that want to accept configuration contributions, take a `Consumer<MethodInvoker.Builder<A>>`:
+
+```java
+static <A> void registerCommonInterceptors(MethodInvoker.Builder<A> builder) {
+  builder.interceptor(new TracingInterceptor()).interceptor(new MdcInterceptor());
+}
+
+MethodInvoker.Builder<Request> builder = MethodInvoker.builder(method, target, Request.class)
+    .resolver(new SessionResolver());
+registerCommonInterceptors(builder);
+MethodInvoker<Request> invoker = builder.build();
+```
+
+Methodical ships as a plain library with no DI-framework integration built in. Callers wire resolvers and interceptors however they like.
 
 ## Parameter Name Override
 
@@ -94,7 +106,7 @@ The resolver sees `"user_name"` instead of `"name"` when looking up the value.
 
 | Module | Description |
 |--------|-------------|
-| `methodical-core` | Core API: `MethodInvokerFactory`, `ParameterResolver<A>`, `MethodInterceptor<A>`, `MethodInvokerConfig<A>`, `@Named`, `@Argument` |
+| `methodical-core` | Core API: `MethodInvoker<A>`, `MethodInvoker.Builder<A>`, `ParameterResolver<A>`, `MethodInterceptor<A>`, `@Named`, `@Argument` |
 | `methodical-jackson3` | Jackson 3 (`tools.jackson`) parameter resolver |
 | `methodical-jackson2` | Jackson 2 (`com.fasterxml.jackson`) parameter resolver |
 | `methodical-gson` | Gson parameter resolver |
@@ -117,12 +129,13 @@ MethodInterceptor<Object> timing = invocation -> {
   }
 };
 
-MethodInvoker<Request> invoker = factory.create(
-    method, target, Request.class,
-    cfg -> cfg.interceptor(timing));
+MethodInvoker<Request> invoker =
+    MethodInvoker.builder(method, target, Request.class)
+        .interceptor(timing)
+        .build();
 ```
 
-Interceptors run in **registration order** — first added is outermost, last added runs closest to the reflective call. There are no built-in interceptors; every cross-cutting concern is opt-in via the customizer.
+Interceptors run in **registration order** — first added is outermost, last added runs closest to the reflective call. There are no built-in interceptors; every cross-cutting concern is opt-in.
 
 The `MethodInterceptors` helper class provides common patterns:
 
@@ -154,9 +167,10 @@ public User createUser(@NotBlank String name, @Valid @NotNull Address address) {
 Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 JakartaValidationInterceptor validation = new JakartaValidationInterceptor(validator);
 
-MethodInvoker<Request> invoker = factory.create(
-    method, target, Request.class,
-    cfg -> cfg.interceptor(validation));
+MethodInvoker<Request> invoker =
+    MethodInvoker.builder(method, target, Request.class)
+        .interceptor(validation)
+        .build();
 ```
 
 Invalid input throws `jakarta.validation.ConstraintViolationException` from `MethodInvoker.invoke(...)`.
@@ -209,7 +223,7 @@ Key `ParameterInfo` helpers (consulted at bind time):
 - `index()` — positional index.
 - `resolvedType()` / `genericType()` — the parameter's type with generics preserved.
 
-**Dispatch order:** at invoker-build time, the factory iterates the registered resolvers in registration order. The first whose `bind(info)` returns a non-empty `Optional` wins; its `Binding` is stored for that parameter. After the customizer-added resolvers, a built-in `@Argument` resolver is consulted as a fallback. The type parameter on `ParameterResolver<A>` is the *argument* type passed to `MethodInvoker.invoke(A)`; the compile-time variance `? super A` on `MethodInvokerConfig.resolver(...)` lets generic resolvers apply to narrower argument types.
+**Dispatch order:** at `build()` time, the builder iterates the registered resolvers in registration order. The first whose `bind(info)` returns a non-empty `Optional` wins; its `Binding` is stored for that parameter. After the builder-added resolvers, a built-in `@Argument` resolver is consulted as a fallback. The type parameter on `ParameterResolver<A>` is the *argument* type passed to `MethodInvoker.invoke(A)`; the compile-time variance `? super A` on `MethodInvoker.Builder.resolver(...)` lets generic resolvers apply to narrower argument types.
 
 **Fail-fast:** if no resolver produces a `Binding` for a parameter, the factory throws `ParameterResolutionException` at `create(...)` time with a message listing what was tried. No silent nulls at invoke time.
 

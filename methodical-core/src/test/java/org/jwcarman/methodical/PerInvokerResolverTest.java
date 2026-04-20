@@ -21,12 +21,11 @@ import java.lang.reflect.Method;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
-/** Exercises resolvers registered via the per-invoker customizer. */
+/** Exercises resolvers registered on the builder. */
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class PerInvokerResolverTest {
 
@@ -54,30 +53,23 @@ class PerInvokerResolverTest {
   }
 
   @Test
-  void customizer_resolver_used() throws Exception {
-    var factory = new DefaultMethodInvokerFactory();
+  void resolver_registered_on_builder_is_used() throws Exception {
     Method method = Greeter.class.getMethod("greet", String.class);
     var invoker =
-        factory.create(
-            method,
-            new Greeter(),
-            TypeRef.of(String.class),
-            cfg -> cfg.resolver(new ConstantResolver("only")));
+        MethodInvoker.builder(method, new Greeter(), TypeRef.of(String.class))
+            .resolver(new ConstantResolver("only"))
+            .build();
     assertThat(invoker.invoke("ignored")).isEqualTo("Hello, only!");
   }
 
   @Test
   void earlier_registered_resolver_wins() throws Exception {
-    var factory = new DefaultMethodInvokerFactory();
     Method method = Greeter.class.getMethod("greet", String.class);
     var invoker =
-        factory.create(
-            method,
-            new Greeter(),
-            TypeRef.of(String.class),
-            cfg ->
-                cfg.resolver(new ConstantResolver("first"))
-                    .resolver(new ConstantResolver("second")));
+        MethodInvoker.builder(method, new Greeter(), TypeRef.of(String.class))
+            .resolver(new ConstantResolver("first"))
+            .resolver(new ConstantResolver("second"))
+            .build();
     assertThat(invoker.invoke("ignored")).isEqualTo("Hello, first!");
   }
 }

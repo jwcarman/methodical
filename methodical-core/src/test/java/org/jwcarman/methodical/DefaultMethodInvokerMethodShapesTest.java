@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jwcarman.methodical.def;
+package org.jwcarman.methodical;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,8 +22,6 @@ import java.util.Arrays;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.Argument;
-import org.jwcarman.methodical.MethodInvoker;
 
 /**
  * Exercises invoker behavior across Method shapes: bridges, defaults, inherited, static, varargs,
@@ -31,8 +29,6 @@ import org.jwcarman.methodical.MethodInvoker;
  */
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class DefaultMethodInvokerMethodShapesTest {
-
-  private final DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory();
 
   // --- bridge methods ---
 
@@ -52,7 +48,8 @@ class DefaultMethodInvokerMethodShapesTest {
     // getMethod on the generic interface against the concrete class returns a bridge.
     Method bridge = StringHandler.class.getMethod("handle", Object.class);
     assertThat(bridge.isBridge()).isTrue();
-    MethodInvoker<String> invoker = factory.create(bridge, new StringHandler(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(bridge, new StringHandler(), String.class).build();
     assertThat(invoker.invoke("hi")).isEqualTo("handled: hi");
   }
 
@@ -61,7 +58,8 @@ class DefaultMethodInvokerMethodShapesTest {
     // getDeclaredMethod on String parameter returns the non-bridge override.
     Method concrete = StringHandler.class.getDeclaredMethod("handle", String.class);
     assertThat(concrete.isBridge()).isFalse();
-    MethodInvoker<String> invoker = factory.create(concrete, new StringHandler(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(concrete, new StringHandler(), String.class).build();
     assertThat(invoker.invoke("hi")).isEqualTo("handled: hi");
   }
 
@@ -71,16 +69,13 @@ class DefaultMethodInvokerMethodShapesTest {
     java.util.concurrent.atomic.AtomicReference<Method> seen =
         new java.util.concurrent.atomic.AtomicReference<>();
     var invoker =
-        factory.create(
-            bridge,
-            new StringHandler(),
-            String.class,
-            cfg ->
-                cfg.interceptor(
-                    invocation -> {
-                      seen.set(invocation.method());
-                      return invocation.proceed();
-                    }));
+        MethodInvoker.builder(bridge, new StringHandler(), String.class)
+            .interceptor(
+                invocation -> {
+                  seen.set(invocation.method());
+                  return invocation.proceed();
+                })
+            .build();
     assertThat(invoker.invoke("hi")).isEqualTo("handled: hi");
     assertThat(seen.get()).isEqualTo(bridge);
     assertThat(seen.get().isBridge()).isTrue();
@@ -104,7 +99,8 @@ class DefaultMethodInvokerMethodShapesTest {
     Method bridge = IntegerFactory.class.getMethod("make");
     // getMethod returns the bridge from the supertype perspective — it has return type Number
     // and isBridge() = true. Invoking it reflectively lands on the Integer-returning override.
-    MethodInvoker<Object> invoker = factory.create(bridge, new IntegerFactory(), Object.class);
+    MethodInvoker<Object> invoker =
+        MethodInvoker.builder(bridge, new IntegerFactory(), Object.class).build();
     assertThat(invoker.invoke(new Object())).isEqualTo(42);
   }
 
@@ -113,7 +109,8 @@ class DefaultMethodInvokerMethodShapesTest {
     Method concrete = IntegerFactory.class.getDeclaredMethod("make");
     assertThat(concrete.isBridge()).isFalse();
     assertThat(concrete.getReturnType()).isEqualTo(Integer.class);
-    MethodInvoker<Object> invoker = factory.create(concrete, new IntegerFactory(), Object.class);
+    MethodInvoker<Object> invoker =
+        MethodInvoker.builder(concrete, new IntegerFactory(), Object.class).build();
     assertThat(invoker.invoke(new Object())).isEqualTo(42);
   }
 
@@ -138,7 +135,7 @@ class DefaultMethodInvokerMethodShapesTest {
     Method bridge = StringToIntProcessor.class.getMethod("process", Object.class);
     assertThat(bridge.isBridge()).isTrue();
     MethodInvoker<String> invoker =
-        factory.create(bridge, new StringToIntProcessor(), String.class);
+        MethodInvoker.builder(bridge, new StringToIntProcessor(), String.class).build();
     assertThat(invoker.invoke("hello")).isEqualTo(5);
   }
 
@@ -147,7 +144,7 @@ class DefaultMethodInvokerMethodShapesTest {
     Method concrete = StringToIntProcessor.class.getDeclaredMethod("process", String.class);
     assertThat(concrete.isBridge()).isFalse();
     MethodInvoker<String> invoker =
-        factory.create(concrete, new StringToIntProcessor(), String.class);
+        MethodInvoker.builder(concrete, new StringToIntProcessor(), String.class).build();
     assertThat(invoker.invoke("hello")).isEqualTo(5);
   }
 
@@ -164,7 +161,7 @@ class DefaultMethodInvokerMethodShapesTest {
   @Test
   void inherited_method_invokes_on_subclass_instance() throws Exception {
     Method m = Sub.class.getMethod("greet", String.class);
-    MethodInvoker<String> invoker = factory.create(m, new Sub(), String.class);
+    MethodInvoker<String> invoker = MethodInvoker.builder(m, new Sub(), String.class).build();
     assertThat(invoker.invoke("x")).isEqualTo("base x");
   }
 
@@ -181,7 +178,8 @@ class DefaultMethodInvokerMethodShapesTest {
   @Test
   void default_interface_method_invokes_on_implementer() throws Exception {
     Method m = Greeter.class.getMethod("greet", String.class);
-    MethodInvoker<String> invoker = factory.create(m, new DefaultGreeter(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(m, new DefaultGreeter(), String.class).build();
     assertThat(invoker.invoke("z")).isEqualTo("hi z");
   }
 
@@ -200,7 +198,8 @@ class DefaultMethodInvokerMethodShapesTest {
     // Using a dummy instance keeps that working while the reflective invoke itself uses null
     // target.
     // Alternative: factories accept null target; this test pins current behavior.
-    MethodInvoker<String> invoker = factory.create(m, new StaticHolder(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(m, new StaticHolder(), String.class).build();
     assertThat(invoker.invoke("hi")).isEqualTo("HI");
   }
 
@@ -215,7 +214,8 @@ class DefaultMethodInvokerMethodShapesTest {
   @Test
   void primitive_return_autoboxed() throws Exception {
     Method m = PrimitiveTarget.class.getMethod("doubled", Integer.class);
-    MethodInvoker<Integer> invoker = factory.create(m, new PrimitiveTarget(), Integer.class);
+    MethodInvoker<Integer> invoker =
+        MethodInvoker.builder(m, new PrimitiveTarget(), Integer.class).build();
     assertThat(invoker.invoke(21)).isEqualTo(42);
   }
 
@@ -230,7 +230,8 @@ class DefaultMethodInvokerMethodShapesTest {
   @Test
   void varargs_shaped_method_invokes_correctly() throws Exception {
     Method m = VarargsTarget.class.getMethod("join", String[].class);
-    MethodInvoker<String[]> invoker = factory.create(m, new VarargsTarget(), String[].class);
+    MethodInvoker<String[]> invoker =
+        MethodInvoker.builder(m, new VarargsTarget(), String[].class).build();
     assertThat(invoker.invoke(new String[] {"a", "b", "c"})).isEqualTo("a-b-c");
   }
 
@@ -245,7 +246,8 @@ class DefaultMethodInvokerMethodShapesTest {
   @Test
   void package_private_method_invokable_via_setAccessible() throws Exception {
     Method m = PackagePrivate.class.getDeclaredMethod("secret", String.class);
-    MethodInvoker<String> invoker = factory.create(m, new PackagePrivate(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(m, new PackagePrivate(), String.class).build();
     assertThat(invoker.invoke("hello")).isEqualTo("pkg: hello");
   }
 
@@ -263,7 +265,7 @@ class DefaultMethodInvokerMethodShapesTest {
   void void_return_surfaces_as_null() throws Exception {
     VoidTarget target = new VoidTarget();
     Method m = VoidTarget.class.getMethod("capture", String.class);
-    MethodInvoker<String> invoker = factory.create(m, target, String.class);
+    MethodInvoker<String> invoker = MethodInvoker.builder(m, target, String.class).build();
     assertThat(invoker.invoke("captured")).isNull();
     assertThat(target.captured).isEqualTo("captured");
   }
@@ -279,7 +281,8 @@ class DefaultMethodInvokerMethodShapesTest {
   @Test
   void checked_exception_wrapped_in_method_invocation_exception() throws Exception {
     Method m = ThrowingTarget.class.getMethod("boom", String.class);
-    MethodInvoker<String> invoker = factory.create(m, new ThrowingTarget(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(m, new ThrowingTarget(), String.class).build();
     assertThat(Arrays.stream(m.getExceptionTypes()).toList())
         .contains(Exception.class); // sanity check
     try {

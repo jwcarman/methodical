@@ -21,27 +21,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 
-class MethodInvokerFactoryTest {
-
-  private final MethodInvokerFactory factory = new DefaultMethodInvokerFactory();
+class MethodInvokerBuilderTest {
 
   @Test
   void shouldInvokeMethodWithResolverProvidedParams() throws Exception {
     Method method = Target.class.getMethod("greet", String.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method, new Target(), String.class, cfg -> cfg.resolver(new StringResolver()));
+        MethodInvoker.builder(method, new Target(), String.class)
+            .resolver(new StringResolver())
+            .build();
     assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
   }
 
   @Test
   void shouldInvokeMethodWithNoParams() throws Exception {
     Method method = Target.class.getMethod("noArgs");
-    MethodInvoker<String> invoker = factory.create(method, new Target(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(method, new Target(), String.class).build();
     assertThat(invoker.invoke("anything")).isEqualTo("no args");
   }
 
@@ -49,8 +48,9 @@ class MethodInvokerFactoryTest {
   void shouldReturnNullForVoidReturnType() throws Exception {
     Method method = Target.class.getMethod("voidMethod", String.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method, new Target(), String.class, cfg -> cfg.resolver(new StringResolver()));
+        MethodInvoker.builder(method, new Target(), String.class)
+            .resolver(new StringResolver())
+            .build();
     assertThat(invoker.invoke("test")).isNull();
   }
 
@@ -58,15 +58,17 @@ class MethodInvokerFactoryTest {
   void shouldReturnNullForBoxedVoidReturnType() throws Exception {
     Method method = Target.class.getMethod("boxedVoidMethod", String.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method, new Target(), String.class, cfg -> cfg.resolver(new StringResolver()));
+        MethodInvoker.builder(method, new Target(), String.class)
+            .resolver(new StringResolver())
+            .build();
     assertThat(invoker.invoke("test")).isNull();
   }
 
   @Test
   void shouldUnwrapAndRethrowRuntimeException() throws Exception {
     Method method = Target.class.getMethod("throwsRuntime");
-    MethodInvoker<String> invoker = factory.create(method, new Target(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(method, new Target(), String.class).build();
     assertThatThrownBy(() -> invoker.invoke("test"))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("runtime error");
@@ -75,7 +77,8 @@ class MethodInvokerFactoryTest {
   @Test
   void shouldWrapCheckedExceptionInMethodInvocationException() throws Exception {
     Method method = Target.class.getMethod("throwsChecked");
-    MethodInvoker<String> invoker = factory.create(method, new Target(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(method, new Target(), String.class).build();
     assertThatThrownBy(() -> invoker.invoke("test"))
         .isInstanceOf(MethodInvocationException.class)
         .hasCauseInstanceOf(IOException.class);
@@ -85,11 +88,10 @@ class MethodInvokerFactoryTest {
   void shouldUseFirstSupportingResolver() throws Exception {
     Method method = Target.class.getMethod("greet", String.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method,
-            new Target(),
-            String.class,
-            cfg -> cfg.resolver(new StringResolver()).resolver(new AlternateStringResolver()));
+        MethodInvoker.builder(method, new Target(), String.class)
+            .resolver(new StringResolver())
+            .resolver(new AlternateStringResolver())
+            .build();
     assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
   }
 
@@ -97,19 +99,18 @@ class MethodInvokerFactoryTest {
   void shouldSkipNonSupportingResolver() throws Exception {
     Method method = Target.class.getMethod("greet", String.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method,
-            new Target(),
-            String.class,
-            cfg -> cfg.resolver(new NonSupportingResolver()).resolver(new StringResolver()));
+        MethodInvoker.builder(method, new Target(), String.class)
+            .resolver(new NonSupportingResolver())
+            .resolver(new StringResolver())
+            .build();
     assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
   }
 
   @Test
   void shouldFailFastWhenNoResolverMatches() throws Exception {
     Method method = Target.class.getMethod("greet", String.class);
-    var target = new Target();
-    assertThatThrownBy(() -> factory.create(method, target, String.class))
+    var builder = MethodInvoker.builder(method, new Target(), String.class);
+    assertThatThrownBy(builder::build)
         .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("No resolver found")
         .hasMessageContaining("name")
@@ -121,8 +122,9 @@ class MethodInvokerFactoryTest {
   void shouldResolveGenericTypes() throws Exception {
     Method method = ConcreteService.class.getMethod("process", Object.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method, new ConcreteService(), String.class, cfg -> cfg.resolver(new StringResolver()));
+        MethodInvoker.builder(method, new ConcreteService(), String.class)
+            .resolver(new StringResolver())
+            .build();
     assertThat(invoker.invoke("test")).isEqualTo("processed: test");
   }
 
@@ -130,8 +132,9 @@ class MethodInvokerFactoryTest {
   void shouldHandleRawParameterResolver() throws Exception {
     Method method = Target.class.getMethod("greet", String.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method, new Target(), String.class, cfg -> cfg.resolver(new WildcardResolver()));
+        MethodInvoker.builder(method, new Target(), String.class)
+            .resolver(new WildcardResolver())
+            .build();
     assertThat(invoker.invoke("world")).isEqualTo("Hello, raw!");
   }
 
@@ -146,7 +149,7 @@ class MethodInvokerFactoryTest {
                 });
     Method method = Target.class.getMethod("greet", String.class);
     MethodInvoker<String> invoker =
-        factory.create(method, new Target(), String.class, cfg -> cfg.resolver(failing));
+        MethodInvoker.builder(method, new Target(), String.class).resolver(failing).build();
     assertThatThrownBy(() -> invoker.invoke("test"))
         .isInstanceOf(ParameterResolutionException.class)
         .hasMessage("bad param");
@@ -155,7 +158,8 @@ class MethodInvokerFactoryTest {
   @Test
   void shouldPassRawArgumentWhenAnnotatedWithArgument() throws Exception {
     Method method = ArgumentTarget.class.getMethod("process", String.class);
-    MethodInvoker<String> invoker = factory.create(method, new ArgumentTarget(), String.class);
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(method, new ArgumentTarget(), String.class).build();
     assertThat(invoker.invoke("raw-value")).isEqualTo("got: raw-value");
   }
 
@@ -163,19 +167,17 @@ class MethodInvokerFactoryTest {
   void argumentAnnotationBypassesResolvers() throws Exception {
     Method method = ArgumentTarget.class.getMethod("process", String.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method,
-            new ArgumentTarget(),
-            String.class,
-            cfg -> cfg.resolver(new NonSupportingResolver()));
+        MethodInvoker.builder(method, new ArgumentTarget(), String.class)
+            .resolver(new NonSupportingResolver())
+            .build();
     assertThat(invoker.invoke("raw-value")).isEqualTo("got: raw-value");
   }
 
   @Test
   void argumentAnnotationThrowsWhenTypeIncompatible() throws Exception {
     Method method = IncompatibleArgumentTarget.class.getMethod("process", Integer.class);
-    var target = new IncompatibleArgumentTarget();
-    assertThatThrownBy(() -> factory.create(method, target, String.class))
+    var builder = MethodInvoker.builder(method, new IncompatibleArgumentTarget(), String.class);
+    assertThatThrownBy(builder::build)
         .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("@Argument")
         .hasMessageContaining("Integer")
@@ -186,9 +188,23 @@ class MethodInvokerFactoryTest {
   void shouldUseNamedAnnotationForParameterName() throws Exception {
     Method method = NamedTarget.class.getMethod("greet", String.class);
     MethodInvoker<String> invoker =
-        factory.create(
-            method, new NamedTarget(), String.class, cfg -> cfg.resolver(new StringResolver()));
+        MethodInvoker.builder(method, new NamedTarget(), String.class)
+            .resolver(new StringResolver())
+            .build();
     assertThat(invoker.invoke("test")).isEqualTo("Hello, test!");
+  }
+
+  @Test
+  void builder_fluent_methods_return_builder_type_via_covariant_returns() throws Exception {
+    Method method = Target.class.getMethod("greet", String.class);
+    // Method chain compiles with MethodInvoker.Builder as the static type throughout, reaching
+    // build() at the end — thanks to the covariant return on resolver()/interceptor().
+    MethodInvoker<String> invoker =
+        MethodInvoker.builder(method, new Target(), String.class)
+            .resolver(new StringResolver())
+            .interceptor(inv -> inv.proceed())
+            .build();
+    assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
   }
 
   // --- Test support classes ---

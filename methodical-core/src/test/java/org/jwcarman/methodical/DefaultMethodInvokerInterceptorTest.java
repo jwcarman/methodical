@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jwcarman.methodical.def;
+package org.jwcarman.methodical;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -26,8 +26,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.Argument;
-import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.intercept.MethodInterceptor;
 
 /**
@@ -43,13 +41,12 @@ class DefaultMethodInvokerInterceptorTest {
     }
   }
 
-  private final DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory();
-
   private MethodInvoker<String> build(
-      java.util.function.Consumer<org.jwcarman.methodical.MethodInvokerConfig<String>> customizer)
-      throws Exception {
+      java.util.function.Consumer<MethodInvoker.Builder<String>> customizer) throws Exception {
     Method m = Greeter.class.getMethod("greet", String.class);
-    return factory.create(m, new Greeter(), String.class, customizer);
+    MethodInvoker.Builder<String> builder = MethodInvoker.builder(m, new Greeter(), String.class);
+    customizer.accept(builder);
+    return builder.build();
   }
 
   @Test

@@ -21,14 +21,13 @@ import java.lang.reflect.Method;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
-/** Covers the four {@link MethodInvokerFactory#create create(...)} overloads as call surfaces. */
+/** Covers the two {@link MethodInvokerBuilder} constructor overloads as call surfaces. */
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
-class MethodInvokerFactoryOverloadTest {
+class MethodInvokerBuilderOverloadTest {
 
   static class StringResolver implements ParameterResolver<String> {
     @Override
@@ -49,39 +48,28 @@ class MethodInvokerFactoryOverloadTest {
     return Greeter.class.getMethod("greet", String.class);
   }
 
-  private final MethodInvokerFactory factory = new DefaultMethodInvokerFactory();
-
   @Test
-  void create_with_class_only_and_customizer() throws Exception {
+  void constructor_accepts_class_argument_type() throws Exception {
     var invoker =
-        factory.create(
-            greetMethod(), new Greeter(), String.class, cfg -> cfg.resolver(new StringResolver()));
+        MethodInvoker.builder(greetMethod(), new Greeter(), String.class)
+            .resolver(new StringResolver())
+            .build();
     assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
   }
 
   @Test
-  void create_with_type_ref_and_customizer() throws Exception {
+  void constructor_accepts_typeref_argument_type() throws Exception {
     var invoker =
-        factory.create(
-            greetMethod(),
-            new Greeter(),
-            TypeRef.of(String.class),
-            cfg -> cfg.resolver(new StringResolver()));
+        MethodInvoker.builder(greetMethod(), new Greeter(), TypeRef.of(String.class))
+            .resolver(new StringResolver())
+            .build();
     assertThat(invoker.invoke("world")).isEqualTo("Hello, world!");
   }
 
   @Test
-  void create_with_class_only_no_customizer_uses_argument_fallback() throws Exception {
-    // Using @Argument means no resolver needed; zero-customizer overloads work.
+  void builder_with_argument_fallback_needs_no_resolver() throws Exception {
     Method m = ArgMethod.class.getMethod("m", String.class);
-    var invoker = factory.create(m, new ArgMethod(), String.class);
-    assertThat(invoker.invoke("raw")).isEqualTo("got raw");
-  }
-
-  @Test
-  void create_with_type_ref_no_customizer_uses_argument_fallback() throws Exception {
-    Method m = ArgMethod.class.getMethod("m", String.class);
-    var invoker = factory.create(m, new ArgMethod(), TypeRef.of(String.class));
+    var invoker = MethodInvoker.builder(m, new ArgMethod(), String.class).build();
     assertThat(invoker.invoke("raw")).isEqualTo("got raw");
   }
 

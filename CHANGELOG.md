@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **`MethodInvokerFactory` interface and `DefaultMethodInvokerFactory` class removed.** Replaced by a nested public interface `MethodInvoker.Builder<A>` with `.resolver(...)` / `.interceptor(...)` / `.build()`. The concrete implementation (`DefaultMethodInvokerBuilder`) is package-private; users obtain builders via `MethodInvoker.builder(method, target, argumentType)`.
+- **`MethodInvokerConfig<A>` interface removed.** The separate "config surface without build()" interface is absorbed into `MethodInvoker.Builder<A>`. Helpers that want to accept configuration contributions take `Consumer<MethodInvoker.Builder<A>>` or the builder itself; convention ("don't call build() from inside") replaces the type-system signal.
+- **Package reshuffle:** `org.jwcarman.methodical.def` is gone. `DefaultMethodInvoker`, `DefaultMethodInvokerBuilder`, and `ArgumentParameterResolver` are package-private internals in `org.jwcarman.methodical`.
+
+### Migration
+
+Before:
+```java
+MethodInvokerFactory factory = new DefaultMethodInvokerFactory();
+MethodInvoker<Req> invoker = factory.create(
+    method, target, Req.class,
+    cfg -> cfg.resolver(r).interceptor(i));
+```
+
+After:
+```java
+MethodInvoker<Req> invoker =
+    MethodInvoker.builder(method, target, Req.class)
+        .resolver(r)
+        .interceptor(i)
+        .build();
+```
+
+`MethodInvoker.builder(...)` is a static factory on the product interface (same shape as `List.of`, `Stream.of`) returning a `MethodInvoker.Builder<A>`. It is the only supported entry point for construction — the concrete `DefaultMethodInvokerBuilder` is package-private.
+
 ### Removed
 
 - **`methodical-autoconfigure` and `methodical-spring-boot-starter` modules removed.** Methodical now ships as a plain Java library with no Spring Boot coupling. The autoconfigure module had shrunk to "provide `new DefaultMethodInvokerFactory()` as a bean" and "provide `new JakartaValidationInterceptor(validator)` when a `Validator` is present" — both reduced to one `@Bean` method of user code after the 0.7.0 binding-based resolver refactor. Consumers who used the starter should depend on `methodical-core` plus whichever JSON / validation module they need, and register any desired beans themselves.

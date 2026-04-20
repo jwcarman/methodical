@@ -13,13 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jwcarman.methodical.def;
+package org.jwcarman.methodical;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
-import org.jwcarman.methodical.MethodInvocationException;
-import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.intercept.MethodInterceptor;
 import org.jwcarman.methodical.intercept.MethodInvocation;
 import org.jwcarman.methodical.param.ParameterResolver;

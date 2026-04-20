@@ -28,7 +28,6 @@ import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
-import org.jwcarman.methodical.def.DefaultMethodInvokerFactory;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class JakartaValidationIntegrationTest {
@@ -42,9 +41,8 @@ class JakartaValidationIntegrationTest {
   private MethodInvoker<String> buildInvoker() throws Exception {
     Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
     JakartaValidationInterceptor interceptor = new JakartaValidationInterceptor(validator);
-    DefaultMethodInvokerFactory factory = new DefaultMethodInvokerFactory();
     Method m = Greeter.class.getDeclaredMethod("greet", String.class);
-    return factory.create(m, new Greeter(), String.class, cfg -> cfg.interceptor(interceptor));
+    return MethodInvoker.builder(m, new Greeter(), String.class).interceptor(interceptor).build();
   }
 
   @Test
