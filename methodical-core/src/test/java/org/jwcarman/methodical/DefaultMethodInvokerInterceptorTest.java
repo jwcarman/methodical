@@ -254,6 +254,26 @@ class DefaultMethodInvokerInterceptorTest {
             "retry:after2=hello w");
   }
 
+  @Test
+  void cursor_toString_renders_only_method_identity_and_does_not_leak_state() throws Exception {
+    AtomicReference<String> rendered = new AtomicReference<>();
+    MethodInvoker<String> invoker =
+        build(
+            cfg ->
+                cfg.interceptor(
+                    invocation -> {
+                      rendered.set(invocation.toString());
+                      return invocation.proceed();
+                    }));
+    invoker.invoke("super-secret-password");
+    assertThat(rendered.get())
+        .contains("Greeter")
+        .contains("greet")
+        .doesNotContain("super-secret-password")
+        .doesNotContain("Lambda")
+        .doesNotContain("continuation");
+  }
+
   private static MethodInterceptor<String> named(String name, List<String> log) {
     return invocation -> {
       log.add(name + ":before");
