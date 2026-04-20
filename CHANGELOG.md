@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-04-19
+
 ### Changed
 
 - **Interceptor chain execution flattened.** `DefaultMethodInvoker` now dispatches through a single per-call cursor object that plays the `MethodInvocation` role for every interceptor in the chain, replacing the previous per-step `MethodInvocation` + continuation-lambda allocations. Per-invocation object allocation drops from `1 + N` (one `MethodInvocation` and one captured lambda per interceptor) to `1` (the cursor), plus the unavoidable `Object[]` handed to `Method.invoke`. Retry semantics preserved — an interceptor calling `proceed()` more than once still re-runs the entire remaining chain on each call, via a saved/restored cursor index. When the interceptor list is empty, the cursor is skipped entirely and the reflective call fires directly. Public API surface unchanged.
@@ -142,7 +144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.6.0...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.6.1...HEAD
+[0.6.1]: https://github.com/jwcarman/methodical/releases/tag/0.6.1
 [0.6.0]: https://github.com/jwcarman/methodical/releases/tag/0.6.0
 [0.5.0]: https://github.com/jwcarman/methodical/releases/tag/0.5.0
 [0.4.0]: https://github.com/jwcarman/methodical/releases/tag/0.4.0
