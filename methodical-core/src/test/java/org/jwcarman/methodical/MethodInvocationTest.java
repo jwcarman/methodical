@@ -30,6 +30,11 @@ class MethodInvocationTest {
     public String greet(String n) {
       return "hi " + n;
     }
+
+    @SuppressWarnings("unused")
+    public String other(String n) {
+      return "other " + n;
+    }
   }
 
   private Method method() throws Exception {
@@ -130,6 +135,18 @@ class MethodInvocationTest {
         MethodInvocation.of(method(), target, "x", new Object[] {"a"}, () -> null);
     MethodInvocation<String> b =
         MethodInvocation.of(method(), target, "x", new Object[] {"b"}, () -> null);
+    assertThat(a).isNotEqualTo(b);
+  }
+
+  @Test
+  void equals_is_false_when_method_differs() throws Exception {
+    Method greet = Target.class.getMethod("greet", String.class);
+    Method other = Target.class.getMethod("other", String.class);
+    Object target = new Target();
+    MethodInvocation<String> a =
+        MethodInvocation.of(greet, target, "x", new Object[] {"x"}, () -> null);
+    MethodInvocation<String> b =
+        MethodInvocation.of(other, target, "x", new Object[] {"x"}, () -> null);
     assertThat(a).isNotEqualTo(b);
   }
 

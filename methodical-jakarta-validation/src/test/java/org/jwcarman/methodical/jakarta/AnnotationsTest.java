@@ -240,6 +240,32 @@ class AnnotationsTest {
     // fixture: empty class used as a mock bridge's declaring class
   }
 
+  static class ArityMismatchDeclaring {
+    // fixture: declares a single non-bridge method whose name matches a mock bridge's name but
+    // whose arity differs. resolveBridged must skip it via the arity check and fall back to
+    // returning the bridge.
+    @SuppressWarnings("unused")
+    public void op() {
+      // bridge under test is mocked to have parameter count 1; this has 0
+    }
+  }
+
+  @Test
+  void bridge_resolution_arity_mismatch_is_skipped() {
+    // Force the arity-check false branch: a real same-named method with different parameter count
+    // must be skipped (JVM iteration order otherwise often finds the matching sibling first and
+    // short-circuits before the mismatch branch is ever evaluated).
+    Method bridge = mock(Method.class);
+    when(bridge.isBridge()).thenReturn(true);
+    when(bridge.getName()).thenReturn("op");
+    when(bridge.getParameterCount()).thenReturn(1);
+    when(bridge.getAnnotation(Marker.class)).thenReturn(null);
+    Class<?> declaring = ArityMismatchDeclaring.class;
+    when(bridge.getDeclaringClass()).thenAnswer(invocation -> declaring);
+
+    assertThat(Annotations.findOnMethod(bridge, Marker.class)).isNull();
+  }
+
   @Test
   void bridge_resolution_falls_back_to_input_when_no_sibling_exists() {
     // Defensive path: javac always emits bridges with a non-bridge sibling, but we still handle
