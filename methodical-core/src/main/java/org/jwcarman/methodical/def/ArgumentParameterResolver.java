@@ -15,15 +15,18 @@
  */
 package org.jwcarman.methodical.def;
 
+import java.util.Optional;
+import org.jwcarman.methodical.Argument;
+import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
 /**
- * A {@link ParameterResolver} that passes the invoker's argument through to a parameter annotated
- * with {@link org.jwcarman.methodical.Argument}. Generic-aware: {@link #supports(ParameterInfo)}
- * defers to {@link ParameterInfo#accepts(TypeRef)} for assignability against the parameter's
- * generic type.
+ * Built-in {@link ParameterResolver} for parameters annotated with {@link Argument}. Rejects
+ * parameters whose declared type is not assignable from the invoker's argument type at bind time
+ * (rather than letting a {@link ClassCastException} fire at invocation time). Produces a binding
+ * that returns the invoker's argument unchanged.
  */
 final class ArgumentParameterResolver<A> implements ParameterResolver<A> {
 
@@ -34,12 +37,16 @@ final class ArgumentParameterResolver<A> implements ParameterResolver<A> {
   }
 
   @Override
-  public boolean supports(ParameterInfo info) {
-    return info.accepts(argumentType);
-  }
-
-  @Override
-  public Object resolve(ParameterInfo info, A argument) {
-    return argument;
+  public Optional<Binding<A>> bind(ParameterInfo info) {
+    if (!info.hasAnnotation(Argument.class)) {
+      return Optional.empty();
+    }
+    if (!info.accepts(argumentType)) {
+      throw new ParameterResolutionException(
+          String.format(
+              "@Argument parameter \"%s\" (type %s) is not assignable from argument type %s",
+              info.name(), info.genericType().getTypeName(), argumentType.getType().getTypeName()));
+    }
+    return Optional.of(argument -> argument);
   }
 }

@@ -15,8 +15,35 @@
  */
 package org.jwcarman.methodical.param;
 
-public interface ParameterResolver<A> {
-  boolean supports(ParameterInfo info);
+import java.util.Optional;
 
-  Object resolve(ParameterInfo info, A argument);
+/**
+ * Produces a per-parameter {@link Binding} at invoker-build time.
+ *
+ * <p>A resolver's {@link #bind(ParameterInfo)} is called once per parameter when the {@link
+ * org.jwcarman.methodical.MethodInvoker} is constructed. Returning {@link Optional#empty()} means
+ * "I don't apply to this parameter" (the factory continues down the resolver list). Returning a
+ * non-empty {@link Optional} supplies a {@link Binding} that is invoked once per parameter per
+ * invocation. Expensive per-parameter setup (reader construction, annotation lookup, name
+ * resolution) belongs inside {@code bind} so the binding's {@link Binding#resolve} is as cheap as
+ * possible.
+ */
+@FunctionalInterface
+public interface ParameterResolver<A> {
+
+  /**
+   * Returns a {@link Binding} for {@code info} if this resolver applies to that parameter, or
+   * {@link Optional#empty()} otherwise.
+   */
+  Optional<Binding<A>> bind(ParameterInfo info);
+
+  /**
+   * A pre-bound resolver for a specific parameter. Holds all per-parameter state needed to produce
+   * the value at invocation time — {@link #resolve(Object)} is the hot path and should avoid
+   * per-call work beyond consulting the supplied argument.
+   */
+  @FunctionalInterface
+  interface Binding<A> {
+    Object resolve(A argument);
+  }
 }

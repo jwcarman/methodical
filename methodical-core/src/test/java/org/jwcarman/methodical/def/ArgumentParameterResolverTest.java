@@ -16,14 +16,19 @@
 package org.jwcarman.methodical.def;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
+import org.jwcarman.methodical.Argument;
+import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
+import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
@@ -35,7 +40,11 @@ class ArgumentParameterResolverTest {
       // no-op for test fixture
     }
 
-    public void takesMap(Map<String, String> value) {
+    public void takesStringWithAnnotation(@Argument String value) {
+      // no-op for test fixture
+    }
+
+    public void takesMapWithAnnotation(@Argument Map<String, String> value) {
       // no-op for test fixture
     }
   }
@@ -51,35 +60,52 @@ class ArgumentParameterResolverTest {
   }
 
   @Test
-  void supports_is_true_when_parameter_accepts_argument_type() {
+  void bind_returns_empty_when_parameter_lacks_argument_annotation() {
     var resolver = new ArgumentParameterResolver<String>(TypeRef.of(String.class));
-    assertThat(resolver.supports(infoFor("takesString"))).isTrue();
+    assertThat(resolver.bind(infoFor("takesString"))).isEmpty();
   }
 
   @Test
-  void supports_is_false_when_parameter_does_not_accept_argument_type() {
+  void bind_returns_binding_when_parameter_has_argument_annotation_and_type_matches() {
+    var resolver = new ArgumentParameterResolver<String>(TypeRef.of(String.class));
+    Optional<ParameterResolver.Binding<String>> binding =
+        resolver.bind(infoFor("takesStringWithAnnotation"));
+    assertThat(binding).isPresent();
+    assertThat(binding.orElseThrow().resolve("hello")).isEqualTo("hello");
+  }
+
+  @Test
+  void bind_throws_when_parameter_has_argument_annotation_but_type_incompatible() {
     var resolver = new ArgumentParameterResolver<Integer>(TypeRef.of(Integer.class));
-    assertThat(resolver.supports(infoFor("takesString"))).isFalse();
+    assertThatThrownBy(() -> resolver.bind(infoFor("takesStringWithAnnotation")))
+        .isInstanceOf(ParameterResolutionException.class)
+        .hasMessageContaining("@Argument")
+        .hasMessageContaining("Integer")
+        .hasMessageContaining("String");
   }
 
   @Test
-  void supports_respects_generic_invariance() {
-    // Parameter is Map<String,String>, argument is Map<String,Object> — Java's invariance rejects.
+  void bind_respects_generic_invariance() {
+    // Parameter is @Argument Map<String,String>, argument is Map<String,Object>: Java invariance
+    // rejects.
     var resolver =
         new ArgumentParameterResolver<Map<String, Object>>(new TypeRef<Map<String, Object>>() {});
-    assertThat(resolver.supports(infoFor("takesMap"))).isFalse();
+    assertThatThrownBy(() -> resolver.bind(infoFor("takesMapWithAnnotation")))
+        .isInstanceOf(ParameterResolutionException.class);
   }
 
   @Test
-  void supports_accepts_identical_parameterization() {
+  void bind_accepts_identical_parameterization() {
     var resolver =
         new ArgumentParameterResolver<Map<String, String>>(new TypeRef<Map<String, String>>() {});
-    assertThat(resolver.supports(infoFor("takesMap"))).isTrue();
+    assertThat(resolver.bind(infoFor("takesMapWithAnnotation"))).isPresent();
   }
 
   @Test
-  void resolve_returns_argument_unchanged() {
+  void binding_returns_argument_unchanged() {
     var resolver = new ArgumentParameterResolver<String>(TypeRef.of(String.class));
-    assertThat(resolver.resolve(infoFor("takesString"), "hello")).isEqualTo("hello");
+    ParameterResolver.Binding<String> binding =
+        resolver.bind(infoFor("takesStringWithAnnotation")).orElseThrow();
+    assertThat(binding.resolve("world")).isEqualTo("world");
   }
 }

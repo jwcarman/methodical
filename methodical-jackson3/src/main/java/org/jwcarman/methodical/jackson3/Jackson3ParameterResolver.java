@@ -15,13 +15,20 @@
  */
 package org.jwcarman.methodical.jackson3;
 
+import java.util.Optional;
 import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
 
+/**
+ * {@link ParameterResolver} that binds JSON nodes to method parameters using Jackson 3. Pre-builds
+ * an {@link ObjectReader} per parameter at {@link #bind} time so the per-invocation hot path does
+ * no reader construction, no type lookup, and no name resolution.
+ */
 public class Jackson3ParameterResolver implements ParameterResolver<JsonNode> {
 
   private final ObjectMapper mapper;
@@ -31,37 +38,34 @@ public class Jackson3ParameterResolver implements ParameterResolver<JsonNode> {
   }
 
   @Override
-  public boolean supports(ParameterInfo info) {
-    return true;
+  public Optional<Binding<JsonNode>> bind(ParameterInfo info) {
+    final String name = info.name();
+    final int index = info.index();
+    final ObjectReader reader = mapper.readerFor(info.resolvedType());
+    return Optional.of(params -> resolve(params, name, index, reader));
   }
 
-  @Override
-  public Object resolve(ParameterInfo info, JsonNode params) {
+  private Object resolve(JsonNode params, String name, int index, ObjectReader reader) {
     if (params == null || params.isNull()) {
       return null;
     }
-    JsonNode node = extractNode(info, params);
+    JsonNode node = extractNode(params, name, index);
     if (node == null || node.isNull()) {
       return null;
     }
-    return deserialize(info, node);
-  }
-
-  private JsonNode extractNode(ParameterInfo info, JsonNode params) {
-    return switch (params.getNodeType()) {
-      case OBJECT -> params.get(info.name());
-      case ARRAY -> info.index() < params.size() ? params.get(info.index()) : null;
-      default -> null;
-    };
-  }
-
-  private Object deserialize(ParameterInfo info, JsonNode node) {
     try {
-      return mapper.readerFor(info.resolvedType()).readValue(mapper.treeAsTokens(node));
+      return reader.readValue(mapper.treeAsTokens(node));
     } catch (JacksonException e) {
       throw new ParameterResolutionException(
-          String.format("Unable to deserialize parameter \"%s\": %s", info.name(), e.getMessage()),
-          e);
+          String.format("Unable to deserialize parameter \"%s\": %s", name, e.getMessage()), e);
     }
+  }
+
+  private static JsonNode extractNode(JsonNode params, String name, int index) {
+    return switch (params.getNodeType()) {
+      case OBJECT -> params.get(name);
+      case ARRAY -> index < params.size() ? params.get(index) : null;
+      default -> null;
+    };
   }
 }

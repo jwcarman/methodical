@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+- **`ParameterResolver<A>` SPI reshaped around per-parameter binding.** The old two-method interface (`boolean supports(ParameterInfo)` + `Object resolve(ParameterInfo, A)`) is replaced by a single method `Optional<Binding<A>> bind(ParameterInfo info)` that returns a pre-bound `ParameterResolver.Binding<A>` (nested type with signature `Object resolve(A argument)`). The resolver decides once, at invoker-build time, whether it applies to a given parameter and — if so — captures all per-parameter state (name, index, resolved type, annotations, reader/parser) into the returned `Binding`. Per-invocation dispatch calls `binding.resolve(argument)` directly, with no `ParameterInfo` traversal.
+- **Jackson 2 / Jackson 3 / Gson resolvers updated to the new SPI.** `Jackson2ParameterResolver`, `Jackson3ParameterResolver`, and `GsonParameterResolver` now pre-construct their reader/type at `bind` time. Public constructors unchanged — users constructing these resolvers directly see no difference; users who implemented the interface themselves must rewrite against `bind(...) -> Optional<Binding<A>>`.
+- **`ArgumentParameterResolver` now checks the `@Argument` annotation inside `bind(...)`.** The built-in `@Argument` resolver is no longer wired as a wildcard type-check — it only produces a `Binding` when the parameter carries `@Argument`. Behavior visible to callers is identical; internal dispatch order simplified.
+
+### Changed
+
+- **`DefaultMethodInvoker` holds a `List<ParameterResolver.Binding<? super A>>`** keyed by parameter index, rather than a list of resolvers paired with `ParameterInfo`. `resolveArguments(A)` walks the bindings and calls each with the invoker's argument — no `ParameterInfo` lookup, no resolver supports-check at call time.
+
+### Migration
+
+Before:
+```java
+public class HeaderResolver implements ParameterResolver<HttpRequest> {
+  public boolean supports(ParameterInfo info) {
+    return info.hasAnnotation(Header.class) && info.accepts(String.class);
+  }
+  public Object resolve(ParameterInfo info, HttpRequest req) {
+    String name = info.annotation(Header.class).orElseThrow().value();
+    return req.getHeader(name);
+  }
+}
+```
+
+After:
+```java
+public class HeaderResolver implements ParameterResolver<HttpRequest> {
+  public Optional<Binding<HttpRequest>> bind(ParameterInfo info) {
+    if (!info.hasAnnotation(Header.class) || !info.accepts(String.class)) {
+      return Optional.empty();
+    }
+    final String name = info.annotation(Header.class).orElseThrow().value();
+    return Optional.of(req -> req.getHeader(name));
+  }
+}
+```
+
 ## [0.6.1] - 2026-04-19
 
 ### Changed

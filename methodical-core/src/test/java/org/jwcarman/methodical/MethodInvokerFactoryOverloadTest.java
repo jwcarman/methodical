@@ -32,13 +32,10 @@ class MethodInvokerFactoryOverloadTest {
 
   static class StringResolver implements ParameterResolver<String> {
     @Override
-    public boolean supports(ParameterInfo info) {
-      return info.accepts(String.class);
-    }
-
-    @Override
-    public Object resolve(ParameterInfo info, String argument) {
-      return argument;
+    public java.util.Optional<Binding<String>> bind(ParameterInfo info) {
+      return info.accepts(String.class)
+          ? java.util.Optional.of(argument -> argument)
+          : java.util.Optional.empty();
     }
   }
 

@@ -19,9 +19,9 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import org.jwcarman.methodical.Argument;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.MethodInvokerConfig;
 import org.jwcarman.methodical.MethodInvokerFactory;
@@ -33,8 +33,8 @@ import org.jwcarman.specular.TypeRef;
 /**
  * Default {@link MethodInvokerFactory}. Holds no ambient state — all configuration flows through
  * the per-invoker {@code customizer}. The only resolver the factory itself supplies is the built-in
- * {@code @Argument} fallback, which is inherent to the declared argument type rather than a
- * pluggable resolver.
+ * {@link ArgumentParameterResolver} for parameters annotated with {@link
+ * org.jwcarman.methodical.Argument}.
  */
 public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
 
@@ -47,55 +47,43 @@ public class DefaultMethodInvokerFactory implements MethodInvokerFactory {
     DefaultMethodInvokerConfig<A> config = new DefaultMethodInvokerConfig<>();
     customizer.accept(config);
 
-    List<ParameterResolver<? super A>> configResolvers = config.resolvers();
+    List<ParameterResolver<? super A>> resolvers = new ArrayList<>(config.resolvers());
+    resolvers.add(new ArgumentParameterResolver<>(argumentType));
 
     Parameter[] parameters = method.getParameters();
     ParameterInfo[] paramInfos = new ParameterInfo[parameters.length];
-    List<ParameterResolver<? super A>> assigned = new ArrayList<>(parameters.length);
+    List<ParameterResolver.Binding<? super A>> bindings = new ArrayList<>(parameters.length);
 
     for (int i = 0; i < parameters.length; i++) {
       TypeRef<?> type = TypeRef.parameterType(parameters[i], target.getClass());
       paramInfos[i] = ParameterInfo.of(parameters[i], i, type);
-      assigned.add(findResolver(method, argumentType, configResolvers, paramInfos[i]));
+      bindings.add(bindParameter(method, argumentType, resolvers, paramInfos[i]));
     }
 
-    return new DefaultMethodInvoker<>(method, target, paramInfos, assigned, config.interceptors());
+    return new DefaultMethodInvoker<>(method, target, bindings, config.interceptors());
   }
 
-  private <A> ParameterResolver<? super A> findResolver(
+  private <A> ParameterResolver.Binding<? super A> bindParameter(
       Method method,
       TypeRef<A> argumentType,
-      List<ParameterResolver<? super A>> configResolvers,
+      List<ParameterResolver<? super A>> resolvers,
       ParameterInfo paramInfo) {
-    if (paramInfo.hasAnnotation(Argument.class)) {
-      if (!paramInfo.accepts(argumentType)) {
-        throw new ParameterResolutionException(
-            String.format(
-                "@Argument parameter \"%s\" (type %s) on %s is not assignable from argument type %s",
-                paramInfo.name(),
-                paramInfo.genericType().getTypeName(),
-                describe(method),
-                argumentType.getType().getTypeName()));
+    for (ParameterResolver<? super A> resolver : resolvers) {
+      Optional<? extends ParameterResolver.Binding<? super A>> bound = resolver.bind(paramInfo);
+      if (bound.isPresent()) {
+        return bound.get();
       }
-      return new ArgumentParameterResolver<>(argumentType);
     }
-
-    ParameterResolver<? super A> match =
-        configResolvers.stream().filter(r -> r.supports(paramInfo)).findFirst().orElse(null);
-    if (match != null) {
-      return match;
-    }
-
     throw new ParameterResolutionException(
         String.format(
             "No resolver found for parameter \"%s\" (type %s) on %s. "
-                + "Argument type: %s. Tried: config=[%s]. "
+                + "Argument type: %s. Tried: [%s]. "
                 + "Hint: annotate with @Argument or add a matching ParameterResolver via the customizer.",
             paramInfo.name(),
             paramInfo.genericType().getTypeName(),
             describe(method),
             argumentType.getType().getTypeName(),
-            configResolvers.stream()
+            resolvers.stream()
                 .map(r -> r.getClass().getSimpleName())
                 .collect(Collectors.joining(", "))));
   }

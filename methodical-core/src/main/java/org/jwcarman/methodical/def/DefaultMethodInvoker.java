@@ -22,13 +22,12 @@ import org.jwcarman.methodical.MethodInvocationException;
 import org.jwcarman.methodical.MethodInvoker;
 import org.jwcarman.methodical.intercept.MethodInterceptor;
 import org.jwcarman.methodical.intercept.MethodInvocation;
-import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 
 /**
- * Default {@link MethodInvoker} implementation. Resolves arguments via assigned {@link
- * ParameterResolver}s, then dispatches through the configured interceptor chain, terminating in a
- * reflective method invocation.
+ * Default {@link MethodInvoker} implementation. Consults per-parameter {@link
+ * ParameterResolver.Binding}s to produce arguments, then dispatches through the configured
+ * interceptor chain, terminating in a reflective method invocation.
  *
  * <p>The chain executes via a single {@link Cursor} allocated per call that plays the {@link
  * MethodInvocation} role for every interceptor. {@code proceed()} advances an internal index to the
@@ -40,8 +39,7 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
 
   private final Method method;
   private final Object target;
-  private final ParameterInfo[] paramInfos;
-  private final List<ParameterResolver<? super A>> resolvers;
+  private final List<ParameterResolver.Binding<? super A>> bindings;
   private final List<MethodInterceptor<? super A>> interceptors;
 
   @SuppressWarnings(
@@ -49,13 +47,11 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   DefaultMethodInvoker(
       Method method,
       Object target,
-      ParameterInfo[] paramInfos,
-      List<ParameterResolver<? super A>> resolvers,
+      List<ParameterResolver.Binding<? super A>> bindings,
       List<MethodInterceptor<? super A>> interceptors) {
     this.method = method;
     this.target = target;
-    this.paramInfos = paramInfos;
-    this.resolvers = resolvers;
+    this.bindings = bindings;
     this.interceptors = interceptors;
     method.setAccessible(true);
   }
@@ -84,23 +80,15 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   }
 
   private Object[] resolveArguments(A argument) {
-    Object[] args = new Object[paramInfos.length];
-    for (int i = 0; i < paramInfos.length; i++) {
-      args[i] = resolvers.get(i).resolve(paramInfos[i], argument);
+    Object[] args = new Object[bindings.size()];
+    for (int i = 0; i < bindings.size(); i++) {
+      args[i] = bindings.get(i).resolve(argument);
     }
     return args;
   }
 
   /**
    * Shared {@link MethodInvocation} instance for the duration of a single {@code invoke(A)} call.
-   *
-   * <p>The interceptor chain is walked via a single integer cursor. {@link #proceed()} saves the
-   * current index, advances, dispatches to the next step, and restores the index on return. That
-   * save/restore preserves existing behavior for interceptors that call {@code proceed()} more than
-   * once: each call re-enters the chain at the caller's position and re-runs the remaining
-   * interceptors plus the reflective invocation. The same cursor instance is passed to every
-   * interceptor in the chain — confirming this is the key observable property of the allocation
-   * reduction.
    *
    * <p>Thread affinity: {@code proceed()} must be called on the same thread that received {@code
    * intercept()}. Cross-thread continuation is not supported.
@@ -138,21 +126,26 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
 
     @Override
     public Object proceed() {
-      int saved = index;
-      index = saved + 1;
-      try {
-        if (index < interceptors.size()) {
-          return interceptors.get(index).intercept(this);
-        }
+      final int next = index + 1;
+      if (next == interceptors.size()) {
+        // Terminal: no state to restore; the reflective call doesn't call back into proceed().
         return invokeMethod(parameters);
+      }
+      // Advance the cursor for the duration of the nested interceptor's intercept() call, then
+      // restore. The restore is what keeps retry semantics working: if the caller invokes
+      // proceed() again, we re-enter the chain from the caller's position and re-run the
+      // remaining steps.
+      final int resumePoint = index;
+      index = next;
+      try {
+        return interceptors.get(next).intercept(this);
       } finally {
-        index = saved;
+        index = resumePoint;
       }
     }
 
     @Override
     public String toString() {
-      // Method identity only — see DefaultMethodInvocation for the rationale (log-safety).
       return "MethodInvocation["
           + method.getDeclaringClass().getSimpleName()
           + "."

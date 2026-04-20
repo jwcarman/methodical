@@ -247,35 +247,36 @@ In a Spring Boot app, `JakartaValidationAutoConfiguration` registers a `JakartaV
 
 ## Writing a Custom Resolver
 
-A resolver is a two-method SPI: `supports(ParameterInfo)` decides whether it handles a given parameter, and `resolve(ParameterInfo, A)` produces the value.
+A resolver's single job is to produce a `Binding` for a given parameter at invoker-build time. The `Binding` is called once per parameter per invocation; it's where the hot-path logic lives. Any per-parameter setup (annotation reading, type lookups, reader construction) should happen inside `bind` so the `Binding.resolve(A)` implementation stays as cheap as possible.
 
 ```java
 public class HeaderResolver implements ParameterResolver<HttpRequest> {
 
     @Override
-    public boolean supports(ParameterInfo info) {
-        return info.hasAnnotation(Header.class) && info.accepts(String.class);
-    }
-
-    @Override
-    public Object resolve(ParameterInfo info, HttpRequest req) {
-        String name = info.annotation(Header.class).orElseThrow().value();
-        return req.getHeader(name);
+    public Optional<Binding<HttpRequest>> bind(ParameterInfo info) {
+        if (!info.hasAnnotation(Header.class) || !info.accepts(String.class)) {
+            return Optional.empty();
+        }
+        final String headerName = info.annotation(Header.class).orElseThrow().value();
+        return Optional.of(req -> req.getHeader(headerName));
     }
 }
 ```
 
-Key `ParameterInfo` helpers:
+The lambda captures `headerName` once. The hot path is a single `req.getHeader(name)` call — no `ParameterInfo` traversal, no annotation lookup, no string comparison per invocation.
+
+Key `ParameterInfo` helpers (consulted at bind time):
 
 - `accepts(Class<?>)` / `accepts(TypeRef<?>)` / `accepts(Type)` — generic-aware assignability check against the parameter's declared type.
 - `hasAnnotation(Class<? extends Annotation>)` — quick check.
 - `annotation(Class<T>)` — returns `Optional<T>`.
 - `name()` — resolved name (honors `@Named`).
 - `index()` — positional index.
+- `resolvedType()` / `genericType()` — the parameter's type with generics preserved.
 
-**Dispatch order:** resolvers are tried in registration order — the first whose `supports()` returns `true` wins. The factory appends a built-in `@Argument` fallback after any customizer-added resolvers. The type parameter on `ParameterResolver<A>` is the *argument* type (what's passed to `MethodInvoker.invoke(A)`); the compile-time variance `? super A` on `MethodInvokerConfig.resolver(...)` lets generic resolvers (e.g., `ParameterResolver<Object>`) apply to narrower argument types.
+**Dispatch order:** at invoker-build time, the factory iterates the registered resolvers in registration order. The first whose `bind(info)` returns a non-empty `Optional` wins; its `Binding` is stored for that parameter. After the customizer-added resolvers, a built-in `@Argument` resolver is consulted as a fallback. The type parameter on `ParameterResolver<A>` is the *argument* type passed to `MethodInvoker.invoke(A)`; the compile-time variance `? super A` on `MethodInvokerConfig.resolver(...)` lets generic resolvers apply to narrower argument types.
 
-**Fail-fast:** if no resolver matches a parameter, the factory throws `ParameterResolutionException` at `create(...)` time with a message listing what was tried. No silent nulls at invoke time.
+**Fail-fast:** if no resolver produces a `Binding` for a parameter, the factory throws `ParameterResolutionException` at `create(...)` time with a message listing what was tried. No silent nulls at invoke time.
 
 **Spring Boot:** register your resolver as a Spring bean to make it available in the context. Compose it into invokers via the customizer — Spring Boot does not wire resolver beans into every invoker automatically.
 

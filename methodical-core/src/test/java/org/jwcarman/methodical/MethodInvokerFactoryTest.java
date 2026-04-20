@@ -138,17 +138,12 @@ class MethodInvokerFactoryTest {
   @Test
   void shouldPropagateParameterResolutionException() throws Exception {
     ParameterResolver<String> failing =
-        new ParameterResolver<>() {
-          @Override
-          public boolean supports(ParameterInfo info) {
-            return true;
-          }
-
-          @Override
-          public Object resolve(ParameterInfo info, String argument) {
-            throw new ParameterResolutionException("bad param", new RuntimeException("cause"));
-          }
-        };
+        info ->
+            java.util.Optional.of(
+                argument -> {
+                  throw new ParameterResolutionException(
+                      "bad param", new RuntimeException("cause"));
+                });
     Method method = Target.class.getMethod("greet", String.class);
     MethodInvoker<String> invoker =
         factory.create(method, new Target(), String.class, cfg -> cfg.resolver(failing));
@@ -255,49 +250,29 @@ class MethodInvokerFactoryTest {
 
   static class StringResolver implements ParameterResolver<String> {
     @Override
-    public boolean supports(ParameterInfo info) {
-      return true;
-    }
-
-    @Override
-    public Object resolve(ParameterInfo info, String argument) {
-      return argument;
+    public java.util.Optional<Binding<String>> bind(ParameterInfo info) {
+      return java.util.Optional.of(argument -> argument);
     }
   }
 
   static class AlternateStringResolver implements ParameterResolver<String> {
     @Override
-    public boolean supports(ParameterInfo info) {
-      return true;
-    }
-
-    @Override
-    public Object resolve(ParameterInfo info, String argument) {
-      return "alternate: " + argument;
+    public java.util.Optional<Binding<String>> bind(ParameterInfo info) {
+      return java.util.Optional.of(argument -> "alternate: " + argument);
     }
   }
 
   static class NonSupportingResolver implements ParameterResolver<String> {
     @Override
-    public boolean supports(ParameterInfo info) {
-      return false;
-    }
-
-    @Override
-    public Object resolve(ParameterInfo info, String argument) {
-      return "should not be called";
+    public java.util.Optional<Binding<String>> bind(ParameterInfo info) {
+      return java.util.Optional.empty();
     }
   }
 
   static class WildcardResolver implements ParameterResolver<Object> {
     @Override
-    public boolean supports(ParameterInfo info) {
-      return true;
-    }
-
-    @Override
-    public Object resolve(ParameterInfo info, Object argument) {
-      return "raw";
+    public java.util.Optional<Binding<Object>> bind(ParameterInfo info) {
+      return java.util.Optional.of(argument -> "raw");
     }
   }
 }

@@ -47,7 +47,7 @@ class Jackson2ParameterResolverTest {
   void shouldResolveFromObjectParamsByName() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
     JsonNode params = mapper.readTree("{\"name\": \"Alice\"}");
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isEqualTo("Alice");
   }
 
@@ -55,7 +55,7 @@ class Jackson2ParameterResolverTest {
   void shouldResolveFromArrayParamsByPosition() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
     JsonNode params = mapper.readTree("[\"Alice\"]");
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isEqualTo("Alice");
   }
 
@@ -74,7 +74,7 @@ class Jackson2ParameterResolverTest {
   void shouldReturnNullWhenExpected(
       String description, JsonNode params, String paramName, int index) throws Exception {
     ParameterInfo info = paramInfo(paramName, index, String.class);
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isNull();
   }
 
@@ -82,21 +82,21 @@ class Jackson2ParameterResolverTest {
   void shouldDeserializeComplexTypes() throws Exception {
     ParameterInfo info = paramInfo("value", 0, int.class);
     JsonNode params = mapper.readTree("{\"value\": 42}");
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isEqualTo(42);
   }
 
   @Test
-  void shouldAlwaysReturnTrueForSupports() throws Exception {
+  void shouldAlwaysBindSuccessfully() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
-    assertThat(resolver.supports(info)).isTrue();
+    assertThat(resolver.bind(info)).isPresent();
   }
 
   @Test
   void shouldReturnNullForScalarParams() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
     JsonNode params = mapper.readTree("\"just a string\"");
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isNull();
   }
 
@@ -104,7 +104,7 @@ class Jackson2ParameterResolverTest {
   void shouldThrowMethodInvocationExceptionOnDeserializationError() throws Exception {
     ParameterInfo info = paramInfo("value", 0, int.class);
     JsonNode params = mapper.readTree("{\"value\": \"not a number\"}");
-    assertThatThrownBy(() -> resolver.resolve(info, params))
+    assertThatThrownBy(() -> resolver.bind(info).orElseThrow().resolve(params))
         .isInstanceOf(ParameterResolutionException.class)
         .hasMessageContaining("Unable to deserialize parameter");
   }

@@ -19,10 +19,17 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonSyntaxException;
+import java.lang.reflect.Type;
+import java.util.Optional;
 import org.jwcarman.methodical.ParameterResolutionException;
 import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
 
+/**
+ * {@link ParameterResolver} that binds JSON elements to method parameters using Gson. Pre-computes
+ * the parameter name, index, and resolved type at {@link #bind} time; the per-invocation hot path
+ * is a single {@link Gson#fromJson(JsonElement, Type)} call.
+ */
 public class GsonParameterResolver implements ParameterResolver<JsonElement> {
 
   private final Gson gson;
@@ -32,38 +39,36 @@ public class GsonParameterResolver implements ParameterResolver<JsonElement> {
   }
 
   @Override
-  public boolean supports(ParameterInfo info) {
-    return true;
+  public Optional<Binding<JsonElement>> bind(ParameterInfo info) {
+    final String name = info.name();
+    final int index = info.index();
+    final Type type = info.resolvedType();
+    return Optional.of(params -> resolve(params, name, index, type));
   }
 
-  @Override
-  public Object resolve(ParameterInfo info, JsonElement params) {
+  private Object resolve(JsonElement params, String name, int index, Type type) {
     if (params == null || params.isJsonNull()) {
       return null;
     }
-    JsonElement element = extractElement(info, params);
+    JsonElement element = extractElement(params, name, index);
     if (element == null || element.isJsonNull()) {
       return null;
     }
-    return deserialize(info, element);
-  }
-
-  private Object deserialize(ParameterInfo info, JsonElement element) {
     try {
-      return gson.fromJson(element, info.resolvedType());
+      return gson.fromJson(element, type);
     } catch (JsonSyntaxException e) {
       throw new ParameterResolutionException(
-          String.format("Unable to deserialize parameter \"%s\": %s", info.name(), e.getMessage()),
-          e);
+          String.format("Unable to deserialize parameter \"%s\": %s", name, e.getMessage()), e);
     }
   }
 
-  private JsonElement extractElement(ParameterInfo info, JsonElement params) {
+  private static JsonElement extractElement(JsonElement params, String name, int index) {
     if (params.isJsonObject()) {
-      return params.getAsJsonObject().get(info.name());
-    } else if (params.isJsonArray()) {
+      return params.getAsJsonObject().get(name);
+    }
+    if (params.isJsonArray()) {
       JsonArray array = params.getAsJsonArray();
-      return info.index() < array.size() ? array.get(info.index()) : null;
+      return index < array.size() ? array.get(index) : null;
     }
     return null;
   }

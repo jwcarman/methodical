@@ -44,18 +44,7 @@ class DefaultMethodInvokerConfigTest {
   @Test
   void resolver_returns_self_for_chaining() {
     DefaultMethodInvokerConfig<String> cfg = new DefaultMethodInvokerConfig<>();
-    ParameterResolver<String> r =
-        new ParameterResolver<>() {
-          @Override
-          public boolean supports(org.jwcarman.methodical.param.ParameterInfo info) {
-            return true;
-          }
-
-          @Override
-          public Object resolve(org.jwcarman.methodical.param.ParameterInfo info, String arg) {
-            return arg;
-          }
-        };
+    ParameterResolver<String> r = info -> java.util.Optional.of(arg -> arg);
     MethodInvokerConfig<String> returned = cfg.resolver(r);
     assertThat(returned).isSameAs(cfg);
   }

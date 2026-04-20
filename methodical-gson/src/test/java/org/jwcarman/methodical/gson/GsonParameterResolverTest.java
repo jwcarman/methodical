@@ -48,7 +48,7 @@ class GsonParameterResolverTest {
   void shouldResolveFromObjectParamsByName() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
     JsonElement params = JsonParser.parseString("{\"name\": \"Alice\"}");
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isEqualTo("Alice");
   }
 
@@ -56,7 +56,7 @@ class GsonParameterResolverTest {
   void shouldResolveFromArrayParamsByPosition() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
     JsonElement params = JsonParser.parseString("[\"Alice\"]");
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isEqualTo("Alice");
   }
 
@@ -74,7 +74,7 @@ class GsonParameterResolverTest {
   void shouldReturnNullWhenExpected(
       String description, JsonElement params, String paramName, int index) throws Exception {
     ParameterInfo info = paramInfo(paramName, index, String.class);
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isNull();
   }
 
@@ -82,21 +82,21 @@ class GsonParameterResolverTest {
   void shouldDeserializeComplexTypes() throws Exception {
     ParameterInfo info = paramInfo("value", 0, int.class);
     JsonElement params = JsonParser.parseString("{\"value\": 42}");
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isEqualTo(42);
   }
 
   @Test
   void shouldAlwaysReturnTrueForSupports() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
-    assertThat(resolver.supports(info)).isTrue();
+    assertThat(resolver.bind(info)).isPresent();
   }
 
   @Test
   void shouldThrowParameterResolutionExceptionOnDeserializationError() throws Exception {
     ParameterInfo info = paramInfo("value", 0, int.class);
     JsonElement params = JsonParser.parseString("{\"value\": \"not a number\"}");
-    assertThatThrownBy(() -> resolver.resolve(info, params))
+    assertThatThrownBy(() -> resolver.bind(info).orElseThrow().resolve(params))
         .isInstanceOf(org.jwcarman.methodical.ParameterResolutionException.class)
         .hasMessageContaining("Unable to deserialize parameter");
   }
@@ -105,7 +105,7 @@ class GsonParameterResolverTest {
   void shouldReturnNullForScalarParams() throws Exception {
     ParameterInfo info = paramInfo("name", 0, String.class);
     JsonElement params = JsonParser.parseString("\"just a string\"");
-    Object result = resolver.resolve(info, params);
+    Object result = resolver.bind(info).orElseThrow().resolve(params);
     assertThat(result).isNull();
   }
 

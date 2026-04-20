@@ -23,9 +23,7 @@ import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 import org.jwcarman.methodical.MethodInvoker;
-import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.methodical.param.ParameterResolver;
-import org.jwcarman.specular.TypeRef;
 
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class DefaultMethodInvokerAccessibilityTest {
@@ -42,23 +40,10 @@ class DefaultMethodInvokerAccessibilityTest {
   void can_invoke_private_method_on_private_nested_class() throws Exception {
     PrivateService target = new PrivateService();
     Method method = PrivateService.class.getDeclaredMethod("secret", String.class);
-    ParameterInfo info = ParameterInfo.of(method.getParameters()[0], 0, TypeRef.of(String.class));
-    ParameterResolver<String> resolver =
-        new ParameterResolver<>() {
-          @Override
-          public boolean supports(ParameterInfo paramInfo) {
-            return true;
-          }
-
-          @Override
-          public Object resolve(ParameterInfo paramInfo, String argument) {
-            return argument;
-          }
-        };
+    ParameterResolver.Binding<String> passThrough = argument -> argument;
 
     MethodInvoker<String> invoker =
-        new DefaultMethodInvoker<>(
-            method, target, new ParameterInfo[] {info}, List.of(resolver), List.of());
+        new DefaultMethodInvoker<>(method, target, List.of(passThrough), List.of());
 
     assertThat(invoker.invoke("hello")).isEqualTo("got: hello");
   }

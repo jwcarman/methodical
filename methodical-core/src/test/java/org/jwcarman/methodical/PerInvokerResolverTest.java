@@ -38,13 +38,12 @@ class PerInvokerResolverTest {
     }
 
     @Override
-    public boolean supports(ParameterInfo info) {
-      return info.accepts(String.class);
-    }
-
-    @Override
-    public Object resolve(ParameterInfo info, String argument) {
-      return value;
+    public java.util.Optional<Binding<String>> bind(ParameterInfo info) {
+      if (!info.accepts(String.class)) {
+        return java.util.Optional.empty();
+      }
+      final String v = value;
+      return java.util.Optional.of(argument -> v);
     }
   }
 
