@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`methodical-autoconfigure` and `methodical-spring-boot-starter` modules removed.** Methodical now ships as a plain Java library with no Spring Boot coupling. The autoconfigure module had shrunk to "provide `new DefaultMethodInvokerFactory()` as a bean" and "provide `new JakartaValidationInterceptor(validator)` when a `Validator` is present" — both reduced to one `@Bean` method of user code after the 0.7.0 binding-based resolver refactor. Consumers who used the starter should depend on `methodical-core` plus whichever JSON / validation module they need, and register any desired beans themselves.
+
+### Breaking changes
+
+- The Maven coordinates `org.jwcarman.methodical:methodical-autoconfigure` and `org.jwcarman.methodical:methodical-spring-boot-starter` no longer exist. Replace with direct dependencies on the specific library modules you need (`methodical-core`, `methodical-jackson3` / `methodical-jackson2` / `methodical-gson`, `methodical-jakarta-validation`).
+- The BOM (`methodical-bom`) no longer declares the two removed artifacts.
+
+### Migration
+
+Before (Spring Boot starter):
+```xml
+<dependency>
+  <groupId>org.jwcarman.methodical</groupId>
+  <artifactId>methodical-spring-boot-starter</artifactId>
+  <version>0.7.0</version>
+</dependency>
+```
+
+After (plain libraries + explicit Spring beans):
+```xml
+<dependency>
+  <groupId>org.jwcarman.methodical</groupId>
+  <artifactId>methodical-core</artifactId>
+  <version>0.8.0</version>
+</dependency>
+<dependency>
+  <groupId>org.jwcarman.methodical</groupId>
+  <artifactId>methodical-jackson3</artifactId>
+  <version>0.8.0</version>
+</dependency>
+<!-- optional -->
+<dependency>
+  <groupId>org.jwcarman.methodical</groupId>
+  <artifactId>methodical-jakarta-validation</artifactId>
+  <version>0.8.0</version>
+</dependency>
+```
+
+```java
+@Configuration
+class MethodicalConfig {
+  @Bean MethodInvokerFactory methodInvokerFactory() {
+    return new DefaultMethodInvokerFactory();
+  }
+
+  @Bean Jackson3ParameterResolver jsonResolver(ObjectMapper mapper) {
+    return new Jackson3ParameterResolver(mapper);
+  }
+
+  @Bean @ConditionalOnBean(Validator.class)
+  JakartaValidationInterceptor jakartaValidation(Validator validator) {
+    return new JakartaValidationInterceptor(validator);
+  }
+}
+```
+
 ## [0.7.0] - 2026-04-19
 
 ### Breaking changes

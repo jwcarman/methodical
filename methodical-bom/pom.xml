@@ -60,16 +60,6 @@
                 <artifactId>methodical-jakarta-validation</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.jwcarman.methodical</groupId>
-                <artifactId>methodical-autoconfigure</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.jwcarman.methodical</groupId>
-                <artifactId>methodical-spring-boot-starter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 </project>

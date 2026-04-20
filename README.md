@@ -76,7 +76,7 @@ MethodInvoker<Request> invoker = factory.create(
         .interceptor(new AuditInterceptor()));
 ```
 
-The factory itself holds no ambient resolvers or interceptors — everything you want applied to an invoker goes through the customizer. This keeps the core framework-neutral; the Spring Boot starter provides beans (see below), and callers compose customizers however they like.
+The factory itself holds no ambient resolvers or interceptors — everything you want applied to an invoker goes through the customizer. This keeps the core framework-neutral: methodical ships as a plain library, with no DI-framework integration built in. Callers compose customizers however they like.
 
 ## Parameter Name Override
 
@@ -99,54 +99,9 @@ The resolver sees `"user_name"` instead of `"name"` when looking up the value.
 | `methodical-jackson2` | Jackson 2 (`com.fasterxml.jackson`) parameter resolver |
 | `methodical-gson` | Gson parameter resolver |
 | `methodical-jakarta-validation` | Jakarta Bean Validation interceptor (`@NotNull`, `@NotBlank`, etc. on invoked-method parameters and return values) |
-| `methodical-autoconfigure` | Spring Boot auto-configuration |
-| `methodical-spring-boot-starter` | Starter pulling in core + autoconfigure |
 | `methodical-bom` | Bill of materials for dependency management |
 
-## Spring Boot
-
-Add the starter:
-
-```xml
-<dependency>
-    <groupId>org.jwcarman.methodical</groupId>
-    <artifactId>methodical-spring-boot-starter</artifactId>
-    <version>${methodical.version}</version>
-</dependency>
-```
-
-And a JSON module (whichever matches your Spring Boot version):
-
-```xml
-<!-- Spring Boot 4.x (Jackson 3) -->
-<dependency>
-    <groupId>org.jwcarman.methodical</groupId>
-    <artifactId>methodical-jackson3</artifactId>
-    <version>${methodical.version}</version>
-</dependency>
-
-<!-- Spring Boot 3.x (Jackson 2) -->
-<dependency>
-    <groupId>org.jwcarman.methodical</groupId>
-    <artifactId>methodical-jackson2</artifactId>
-    <version>${methodical.version}</version>
-</dependency>
-```
-
-Auto-configuration registers a `MethodInvokerFactory` bean along with a `ParameterResolver` bean for whichever JSON module is on the classpath. Attach resolvers and interceptors to individual invokers via the customizer — the Spring Boot starter does not auto-wire context beans into every invoker; explicit composition is the pattern:
-
-```java
-@Bean
-MethodInvoker<JsonNode> greetInvoker(
-    MethodInvokerFactory factory,
-    Jackson3ParameterResolver jsonResolver,
-    JakartaValidationInterceptor validation,
-    MyService target) throws Exception {
-  Method m = MyService.class.getMethod("greet", String.class);
-  return factory.create(m, target, JsonNode.class,
-      cfg -> cfg.resolver(jsonResolver).interceptor(validation));
-}
-```
+All modules are plain Java libraries — no Spring, no DI-framework dependency. In a Spring Boot app, register the pieces you want as beans yourself (see the Jakarta section below for an example) and compose them into invokers via the customizer.
 
 ## Interceptors
 
@@ -187,30 +142,26 @@ Add `methodical-jakarta-validation` to validate method parameters and return val
 </dependency>
 ```
 
-You also need a Jakarta Validation provider at runtime. In a Spring Boot app, `spring-boot-starter-validation` brings Hibernate Validator and auto-configures a `Validator` bean:
+You also need a Jakarta Validation provider at runtime (e.g., Hibernate Validator).
 
-```xml
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-validation</artifactId>
-</dependency>
-```
-
-Annotate the invoked method and register the interceptor on the invoker:
+Wire the interceptor and attach it to an invoker:
 
 ```java
 public User createUser(@NotBlank String name, @Valid @NotNull Address address) {
     // ...
 }
 
-MethodInvoker<JsonNode> invoker = factory.create(
-    method, userService, JsonNode.class,
-    cfg -> cfg
-        .resolver(jsonResolver)
-        .interceptor(jakartaValidationInterceptor));
+Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+JakartaValidationInterceptor validation = new JakartaValidationInterceptor(validator);
+
+MethodInvoker<Request> invoker = factory.create(
+    method, target, Request.class,
+    cfg -> cfg.interceptor(validation));
 ```
 
 Invalid input throws `jakarta.validation.ConstraintViolationException` from `MethodInvoker.invoke(...)`.
+
+In a Spring Boot app: add `spring-boot-starter-validation` to get Hibernate Validator + a `Validator` bean in the context. Then register `JakartaValidationInterceptor` as your own `@Bean` fed by that `Validator`, and inject it wherever you build invokers. Methodical does not ship Spring Boot auto-configuration — the wiring is one `@Bean` method.
 
 ### Validation Groups
 
@@ -228,22 +179,6 @@ public User updateUser(@Null(groups = OnCreate.class) @NotNull(groups = OnUpdate
 ```
 
 Method-level overrides class-level. Both are inherited from supertypes (including bridge-methods from generic interfaces). When absent, `jakarta.validation.groups.Default` is used — matching stock Jakarta behavior.
-
-### Standalone (no Spring)
-
-Wire it manually:
-
-```java
-Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-JakartaValidationInterceptor validation = new JakartaValidationInterceptor(validator);
-
-var factory = new DefaultMethodInvokerFactory();
-MethodInvoker<Request> invoker = factory.create(
-    method, target, Request.class,
-    cfg -> cfg.interceptor(validation));
-```
-
-In a Spring Boot app, `JakartaValidationAutoConfiguration` registers a `JakartaValidationInterceptor` bean whenever `jakarta.validation.Validator` is on the classpath and a `Validator` bean is present. Attach it to invokers via the customizer; nothing is wired automatically into every invoker.
 
 ## Writing a Custom Resolver
 
@@ -278,7 +213,7 @@ Key `ParameterInfo` helpers (consulted at bind time):
 
 **Fail-fast:** if no resolver produces a `Binding` for a parameter, the factory throws `ParameterResolutionException` at `create(...)` time with a message listing what was tried. No silent nulls at invoke time.
 
-**Spring Boot:** register your resolver as a Spring bean to make it available in the context. Compose it into invokers via the customizer — Spring Boot does not wire resolver beans into every invoker automatically.
+**In a Spring Boot app:** register your resolver as a `@Bean` and inject it wherever you build invokers; methodical ships no Spring Boot auto-configuration, and composition into invokers is always explicit via the customizer.
 
 ## Exception Handling
 
@@ -304,7 +239,6 @@ try {
 
 - Java 25+
 - [specular](https://github.com/jwcarman/specular) (transitive, for `TypeRef` and generic type helpers)
-- Spring Boot 4.x (for autoconfigure/starter) or standalone with any Java version
 
 ## Changelog
 
