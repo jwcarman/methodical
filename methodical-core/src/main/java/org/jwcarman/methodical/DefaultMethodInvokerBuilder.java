@@ -22,9 +22,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import org.jwcarman.methodical.intercept.MethodInterceptor;
-import org.jwcarman.methodical.param.ParameterInfo;
-import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
 /**

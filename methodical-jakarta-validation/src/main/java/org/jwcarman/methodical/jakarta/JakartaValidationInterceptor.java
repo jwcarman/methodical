@@ -24,8 +24,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Objects;
 import java.util.Set;
-import org.jwcarman.methodical.intercept.MethodInterceptor;
-import org.jwcarman.methodical.intercept.MethodInvocation;
+import org.jwcarman.methodical.MethodInterceptor;
+import org.jwcarman.methodical.MethodInvocation;
 
 /**
  * A {@link MethodInterceptor} that performs Jakarta Bean Validation on parameters before the chain

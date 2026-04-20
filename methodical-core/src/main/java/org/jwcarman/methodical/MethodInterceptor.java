@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.jwcarman.methodical.intercept;
+package org.jwcarman.methodical;
 
 /**
  * Intercepts a method invocation. Implementations decide whether and when to call {@link

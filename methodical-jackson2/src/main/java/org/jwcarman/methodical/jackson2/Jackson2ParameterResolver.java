@@ -20,9 +20,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import java.io.IOException;
 import java.util.Optional;
+import org.jwcarman.methodical.ParameterInfo;
 import org.jwcarman.methodical.ParameterResolutionException;
-import org.jwcarman.methodical.param.ParameterInfo;
-import org.jwcarman.methodical.param.ParameterResolver;
+import org.jwcarman.methodical.ParameterResolver;
 
 /**
  * {@link ParameterResolver} that binds JSON nodes to method parameters using Jackson 2. Pre-builds

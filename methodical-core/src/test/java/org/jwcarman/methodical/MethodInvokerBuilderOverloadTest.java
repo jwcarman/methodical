@@ -21,8 +21,6 @@ import java.lang.reflect.Method;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.param.ParameterInfo;
-import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
 /** Covers the two {@link MethodInvokerBuilder} constructor overloads as call surfaces. */

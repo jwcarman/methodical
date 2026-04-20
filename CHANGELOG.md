@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`MethodInvokerFactory` interface and `DefaultMethodInvokerFactory` class removed.** Replaced by a nested public interface `MethodInvoker.Builder<A>` with `.resolver(...)` / `.interceptor(...)` / `.build()`. The concrete implementation (`DefaultMethodInvokerBuilder`) is package-private; users obtain builders via `MethodInvoker.builder(method, target, argumentType)`.
 - **`MethodInvokerConfig<A>` interface removed.** The separate "config surface without build()" interface is absorbed into `MethodInvoker.Builder<A>`. Helpers that want to accept configuration contributions take `Consumer<MethodInvoker.Builder<A>>` or the builder itself; convention ("don't call build() from inside") replaces the type-system signal.
-- **Package reshuffle:** `org.jwcarman.methodical.def` is gone. `DefaultMethodInvoker`, `DefaultMethodInvokerBuilder`, and `ArgumentParameterResolver` are package-private internals in `org.jwcarman.methodical`.
+- **Package flattened.** `org.jwcarman.methodical.def`, `org.jwcarman.methodical.intercept`, and `org.jwcarman.methodical.param` subpackages are gone. All public and package-private types now live in a single `org.jwcarman.methodical` package. Imports like `org.jwcarman.methodical.intercept.MethodInterceptor` become `org.jwcarman.methodical.MethodInterceptor`.
 
 ### Migration
 

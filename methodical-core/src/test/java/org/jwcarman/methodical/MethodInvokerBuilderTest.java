@@ -21,8 +21,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.param.ParameterInfo;
-import org.jwcarman.methodical.param.ParameterResolver;
 
 class MethodInvokerBuilderTest {
 
@@ -56,11 +54,9 @@ class MethodInvokerBuilderTest {
 
   @Test
   void shouldReturnNullForBoxedVoidReturnType() throws Exception {
-    Method method = Target.class.getMethod("boxedVoidMethod", String.class);
+    Method method = Target.class.getMethod("boxedVoidMethod");
     MethodInvoker<String> invoker =
-        MethodInvoker.builder(method, new Target(), String.class)
-            .resolver(new StringResolver())
-            .build();
+        MethodInvoker.builder(method, new Target(), String.class).build();
     assertThat(invoker.invoke("test")).isNull();
   }
 
@@ -240,7 +236,7 @@ class MethodInvokerBuilderTest {
       // no-op
     }
 
-    public Void boxedVoidMethod(String arg) {
+    public Void boxedVoidMethod() {
       return null;
     }
 

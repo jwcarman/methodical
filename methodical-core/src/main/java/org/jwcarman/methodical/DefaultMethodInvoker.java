@@ -18,9 +18,6 @@ package org.jwcarman.methodical;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
-import org.jwcarman.methodical.intercept.MethodInterceptor;
-import org.jwcarman.methodical.intercept.MethodInvocation;
-import org.jwcarman.methodical.param.ParameterResolver;
 
 /**
  * Default {@link MethodInvoker} implementation. Consults per-parameter {@link

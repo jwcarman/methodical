@@ -16,8 +16,6 @@
 package org.jwcarman.methodical;
 
 import java.util.Optional;
-import org.jwcarman.methodical.param.ParameterInfo;
-import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
 /**

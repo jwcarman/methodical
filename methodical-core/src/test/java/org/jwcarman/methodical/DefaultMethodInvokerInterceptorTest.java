@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
-import org.jwcarman.methodical.intercept.MethodInterceptor;
 
 /**
  * Exercises interceptor semantics at the {@code MethodInvokerFactory.create(..., customizer)}

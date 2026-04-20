@@ -28,8 +28,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.jwcarman.methodical.ParameterInfo;
 import org.jwcarman.methodical.ParameterResolutionException;
-import org.jwcarman.methodical.param.ParameterInfo;
 import org.jwcarman.specular.TypeRef;
 
 class Jackson2ParameterResolverTest {

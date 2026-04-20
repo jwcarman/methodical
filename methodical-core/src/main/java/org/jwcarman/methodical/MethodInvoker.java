@@ -16,8 +16,6 @@
 package org.jwcarman.methodical;
 
 import java.lang.reflect.Method;
-import org.jwcarman.methodical.intercept.MethodInterceptor;
-import org.jwcarman.methodical.param.ParameterResolver;
 import org.jwcarman.specular.TypeRef;
 
 /**

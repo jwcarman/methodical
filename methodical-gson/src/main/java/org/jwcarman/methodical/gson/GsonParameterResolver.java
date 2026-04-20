@@ -21,9 +21,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonSyntaxException;
 import java.lang.reflect.Type;
 import java.util.Optional;
+import org.jwcarman.methodical.ParameterInfo;
 import org.jwcarman.methodical.ParameterResolutionException;
-import org.jwcarman.methodical.param.ParameterInfo;
-import org.jwcarman.methodical.param.ParameterResolver;
+import org.jwcarman.methodical.ParameterResolver;
 
 /**
  * {@link ParameterResolver} that binds JSON elements to method parameters using Gson. Pre-computes
