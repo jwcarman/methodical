@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Interceptor chain execution flattened.** `DefaultMethodInvoker` now dispatches through a single per-call cursor object that plays the `MethodInvocation` role for every interceptor in the chain, replacing the previous per-step `MethodInvocation` + continuation-lambda allocations. Per-invocation object allocation drops from `1 + N` (one `MethodInvocation` and one captured lambda per interceptor) to `1` (the cursor), plus the unavoidable `Object[]` handed to `Method.invoke`. Retry semantics preserved — an interceptor calling `proceed()` more than once still re-runs the entire remaining chain on each call, via a saved/restored cursor index. When the interceptor list is empty, the cursor is skipped entirely and the reflective call fires directly. Public API surface unchanged.
+- **`MethodInvocation.proceed()` javadoc** now documents the thread-affinity constraint: `proceed()` must be called on the same thread that received `intercept(...)`. Cross-thread continuation (handing the invocation to a worker pool and calling `proceed()` there) is not supported.
+
 ## [0.6.0] - 2026-04-19
 
 ### Breaking changes

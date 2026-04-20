@@ -51,6 +51,11 @@ public interface MethodInvocation<A> {
    * <p>May be called zero, one, or many times. Each call re-runs any remaining interceptors and,
    * ultimately, the reflective method invocation. Most interceptors call this exactly once; retry
    * interceptors may call it in a loop.
+   *
+   * <p>Thread affinity: implementations may require {@code proceed()} to be called on the same
+   * thread that received {@code intercept(...)}. Cross-thread continuations — e.g. handing the
+   * invocation to a pool executor and calling {@code proceed()} from the worker thread — are not
+   * supported.
    */
   Object proceed();
 

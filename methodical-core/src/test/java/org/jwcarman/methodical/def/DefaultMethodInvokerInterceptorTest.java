@@ -189,6 +189,75 @@ class DefaultMethodInvokerInterceptorTest {
     assertThat(hits.get()).isEqualTo(1);
   }
 
+  @Test
+  void single_MethodInvocation_instance_is_shared_across_all_interceptors() throws Exception {
+    AtomicReference<Object> seenByFirst = new AtomicReference<>();
+    AtomicReference<Object> seenBySecond = new AtomicReference<>();
+    AtomicReference<Object> seenByThird = new AtomicReference<>();
+
+    MethodInvoker<String> invoker =
+        build(
+            cfg ->
+                cfg.interceptor(
+                        invocation -> {
+                          seenByFirst.set(invocation);
+                          return invocation.proceed();
+                        })
+                    .interceptor(
+                        invocation -> {
+                          seenBySecond.set(invocation);
+                          return invocation.proceed();
+                        })
+                    .interceptor(
+                        invocation -> {
+                          seenByThird.set(invocation);
+                          return invocation.proceed();
+                        }));
+    invoker.invoke("x");
+
+    // Every interceptor must see the exact same MethodInvocation instance. This is the observable
+    // property of the single-cursor allocation strategy; regressing to per-step invocations would
+    // make these distinct objects.
+    assertThat(seenByFirst.get()).isSameAs(seenBySecond.get()).isSameAs(seenByThird.get());
+  }
+
+  @Test
+  void multi_interceptor_retry_reruns_entire_remaining_chain_each_time() throws Exception {
+    List<String> log = new ArrayList<>();
+    AtomicInteger innerFires = new AtomicInteger();
+
+    MethodInterceptor<String> retryer =
+        invocation -> {
+          log.add("retry:start");
+          Object a = invocation.proceed();
+          log.add("retry:after1=" + a);
+          Object b = invocation.proceed();
+          log.add("retry:after2=" + b);
+          return a + "|" + b;
+        };
+    MethodInterceptor<String> inner =
+        invocation -> {
+          innerFires.incrementAndGet();
+          log.add("inner:fire");
+          return invocation.proceed();
+        };
+
+    MethodInvoker<String> invoker = build(cfg -> cfg.interceptor(retryer).interceptor(inner));
+    Object result = invoker.invoke("w");
+
+    // Inner must fire TWICE — once for each proceed() from retryer. The chain must re-run from the
+    // caller's position on every proceed() call, not skip forward past already-consumed steps.
+    assertThat(innerFires.get()).isEqualTo(2);
+    assertThat(result).isEqualTo("hello w|hello w");
+    assertThat(log)
+        .containsExactly(
+            "retry:start",
+            "inner:fire",
+            "retry:after1=hello w",
+            "inner:fire",
+            "retry:after2=hello w");
+  }
+
   private static MethodInterceptor<String> named(String name, List<String> log) {
     return invocation -> {
       log.add(name + ":before");

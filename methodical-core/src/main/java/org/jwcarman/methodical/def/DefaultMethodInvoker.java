@@ -27,13 +27,14 @@ import org.jwcarman.methodical.param.ParameterResolver;
 
 /**
  * Default {@link MethodInvoker} implementation. Resolves arguments via assigned {@link
- * ParameterResolver}s and dispatches through a pre-built chain of {@link Call}s.
+ * ParameterResolver}s, then dispatches through the configured interceptor chain, terminating in a
+ * reflective method invocation.
  *
- * <p>The chain is assembled once at construction time by folding from the last interceptor back to
- * the first: the reflective call ({@link MethodCall}) is wrapped by the last interceptor, that
- * result is wrapped by the previous, and so on. With no interceptors, the chain is just a {@link
- * MethodCall}. {@link MethodCall} and {@link InterceptorCall} are non-static inner classes so they
- * can read {@code method} and {@code target} directly from the enclosing invoker.
+ * <p>The chain executes via a single {@link Cursor} allocated per call that plays the {@link
+ * MethodInvocation} role for every interceptor. {@code proceed()} advances an internal index to the
+ * next step and restores it on return, so interceptors that call {@code proceed()} more than once
+ * (retry) re-run the entire remaining chain on each call. With no interceptors, the cursor is
+ * bypassed and the reflective call fires directly.
  */
 class DefaultMethodInvoker<A> implements MethodInvoker<A> {
 
@@ -41,7 +42,7 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   private final Object target;
   private final ParameterInfo[] paramInfos;
   private final List<ParameterResolver<? super A>> resolvers;
-  private final Call<A> chain;
+  private final List<MethodInterceptor<? super A>> interceptors;
 
   @SuppressWarnings(
       "java:S3011") // setAccessible is load-bearing for a reflective invocation library
@@ -55,18 +56,31 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     this.target = target;
     this.paramInfos = paramInfos;
     this.resolvers = resolvers;
+    this.interceptors = interceptors;
     method.setAccessible(true);
-    Call<A> call = new MethodCall();
-    for (MethodInterceptor<? super A> interceptor : interceptors.reversed()) {
-      call = new InterceptorCall(interceptor, call);
-    }
-    this.chain = call;
   }
 
   @Override
   public Object invoke(A argument) {
     Object[] parameters = resolveArguments(argument);
-    return chain.invoke(argument, parameters);
+    if (interceptors.isEmpty()) {
+      return invokeMethod(parameters);
+    }
+    return new Cursor(argument, parameters).proceed();
+  }
+
+  private Object invokeMethod(Object[] parameters) {
+    try {
+      return method.invoke(target, parameters);
+    } catch (InvocationTargetException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof RuntimeException re) {
+        throw re;
+      }
+      throw new MethodInvocationException("Method invocation failed: " + cause.getMessage(), cause);
+    } catch (IllegalAccessException e) {
+      throw new MethodInvocationException("Method invocation failed: " + e.getMessage(), e);
+    }
   }
 
   private Object[] resolveArguments(A argument) {
@@ -77,50 +91,73 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     return args;
   }
 
-  /** A step in the pre-built chain — either {@link MethodCall} or {@link InterceptorCall}. */
-  @FunctionalInterface
-  private interface Call<T> {
-    Object invoke(T argument, Object[] parameters);
-  }
+  /**
+   * Shared {@link MethodInvocation} instance for the duration of a single {@code invoke(A)} call.
+   *
+   * <p>The interceptor chain is walked via a single integer cursor. {@link #proceed()} saves the
+   * current index, advances, dispatches to the next step, and restores the index on return. That
+   * save/restore preserves existing behavior for interceptors that call {@code proceed()} more than
+   * once: each call re-enters the chain at the caller's position and re-runs the remaining
+   * interceptors plus the reflective invocation. The same cursor instance is passed to every
+   * interceptor in the chain — confirming this is the key observable property of the allocation
+   * reduction.
+   *
+   * <p>Thread affinity: {@code proceed()} must be called on the same thread that received {@code
+   * intercept()}. Cross-thread continuation is not supported.
+   */
+  private final class Cursor implements MethodInvocation<A> {
 
-  /** Terminal {@link Call} that invokes the underlying method reflectively. */
-  private final class MethodCall implements Call<A> {
+    private final A argument;
+    private final Object[] parameters;
+    private int index = -1;
+
+    Cursor(A argument, Object[] parameters) {
+      this.argument = argument;
+      this.parameters = parameters;
+    }
+
     @Override
-    public Object invoke(A argument, Object[] parameters) {
+    public Method method() {
+      return method;
+    }
+
+    @Override
+    public Object target() {
+      return target;
+    }
+
+    @Override
+    public A argument() {
+      return argument;
+    }
+
+    @Override
+    public Object[] resolvedParameters() {
+      return parameters.clone();
+    }
+
+    @Override
+    public Object proceed() {
+      int saved = index;
+      index = saved + 1;
       try {
-        return method.invoke(target, parameters);
-      } catch (InvocationTargetException e) {
-        Throwable cause = e.getCause();
-        if (cause instanceof RuntimeException re) {
-          throw re;
+        if (index < interceptors.size()) {
+          return interceptors.get(index).intercept(this);
         }
-        throw new MethodInvocationException(
-            "Method invocation failed: " + cause.getMessage(), cause);
-      } catch (IllegalAccessException e) {
-        throw new MethodInvocationException("Method invocation failed: " + e.getMessage(), e);
+        return invokeMethod(parameters);
+      } finally {
+        index = saved;
       }
     }
-  }
-
-  /**
-   * {@link Call} that applies an interceptor around a next step. Builds a public {@link
-   * MethodInvocation} whose {@code proceed()} drives the next step.
-   */
-  private final class InterceptorCall implements Call<A> {
-    private final MethodInterceptor<? super A> interceptor;
-    private final Call<A> next;
-
-    InterceptorCall(MethodInterceptor<? super A> interceptor, Call<A> next) {
-      this.interceptor = interceptor;
-      this.next = next;
-    }
 
     @Override
-    public Object invoke(A argument, Object[] parameters) {
-      MethodInvocation<A> invocation =
-          MethodInvocation.of(
-              method, target, argument, parameters, () -> next.invoke(argument, parameters));
-      return interceptor.intercept(invocation);
+    public String toString() {
+      // Method identity only — see DefaultMethodInvocation for the rationale (log-safety).
+      return "MethodInvocation["
+          + method.getDeclaringClass().getSimpleName()
+          + "."
+          + method.getName()
+          + "]";
     }
   }
 }
