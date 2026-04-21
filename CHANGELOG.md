@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-04-21
+
+### Fixed
+
+- **`MethodInvoker` is a `@FunctionalInterface` again.** 0.9.0 dropped the annotation to make room for an abstract `describe()` method, which broke lambda-based implementations. `describe()` is now a `default` method (returning the invoker's runtime class name, `"invoke"`, and an empty interceptor list), so lambdas satisfy the interface once more. Implementations that already override `describe()` — notably the builder-produced `DefaultMethodInvoker` — are unaffected.
+
 ## [0.9.0] - 2026-04-21
 
 ### Breaking changes
@@ -275,7 +281,8 @@ public class HeaderResolver implements ParameterResolver<HttpRequest> {
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.9.0...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.9.1...HEAD
+[0.9.1]: https://github.com/jwcarman/methodical/releases/tag/0.9.1
 [0.9.0]: https://github.com/jwcarman/methodical/releases/tag/0.9.0
 [0.8.0]: https://github.com/jwcarman/methodical/releases/tag/0.8.0
 [0.7.0]: https://github.com/jwcarman/methodical/releases/tag/0.7.0

@@ -27,6 +27,7 @@ import org.jwcarman.specular.TypeRef;
  * Object, TypeRef)}. The returned {@link Builder} lets you attach resolvers and interceptors
  * fluently before finalizing with {@link Builder#build()}.
  */
+@FunctionalInterface
 public interface MethodInvoker<A> {
 
   /**
@@ -38,8 +39,15 @@ public interface MethodInvoker<A> {
   /**
    * Returns an inert, human-readable snapshot of what this invoker wraps. Intended for
    * observability surfaces (actuator endpoints, logs, diagnostics) — not for invocation.
+   *
+   * <p>The default implementation reports the runtime class of this invoker, the SAM method name
+   * ({@code "invoke"}), and an empty interceptor list — accurate for bare lambdas and custom
+   * implementations that do not override. Implementations with access to the underlying {@link
+   * Method} and interceptor chain should override to return a richer descriptor.
    */
-  Descriptor describe();
+  default Descriptor describe() {
+    return new Descriptor(getClass().getName(), "invoke", List.of());
+  }
 
   /**
    * Snapshot of the method an invoker wraps, plus a {@code toString()} view of its interceptor
