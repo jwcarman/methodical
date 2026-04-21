@@ -78,7 +78,7 @@ public final class JakartaValidationInterceptor implements MethodInterceptor<Obj
 
   @Override
   public String toString() {
-    return "Jakarta Bean Validation";
+    return "Validates method parameters and return value against Jakarta Bean Validation constraints";
   }
 
   private static Class<?>[] resolveGroups(Object target, Method method) {

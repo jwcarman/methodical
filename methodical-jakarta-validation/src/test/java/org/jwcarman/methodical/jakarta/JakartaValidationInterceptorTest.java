@@ -78,7 +78,9 @@ class JakartaValidationInterceptorTest {
 
   @Test
   void toString_describes_what_the_interceptor_does() {
-    assertThat(interceptor).hasToString("Jakarta Bean Validation");
+    assertThat(interceptor)
+        .hasToString(
+            "Validates method parameters and return value against Jakarta Bean Validation constraints");
   }
 
   @Test

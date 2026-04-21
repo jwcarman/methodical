@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-04-21
+
+### Changed
+
+- **`JakartaValidationInterceptor.toString()`** now returns a full action-oriented description (`"Validates method parameters and return value against Jakarta Bean Validation constraints"`) to match the style of descriptor entries produced by other interceptors in an observability chain.
+
 ## [0.9.1] - 2026-04-21
 
 ### Fixed
@@ -281,7 +287,8 @@ public class HeaderResolver implements ParameterResolver<HttpRequest> {
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.9.1...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.9.2...HEAD
+[0.9.2]: https://github.com/jwcarman/methodical/releases/tag/0.9.2
 [0.9.1]: https://github.com/jwcarman/methodical/releases/tag/0.9.1
 [0.9.0]: https://github.com/jwcarman/methodical/releases/tag/0.9.0
 [0.8.0]: https://github.com/jwcarman/methodical/releases/tag/0.8.0
