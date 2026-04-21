@@ -36,6 +36,7 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
   private final Object target;
   private final List<ParameterResolver.Binding<? super A>> bindings;
   private final List<MethodInterceptor<? super A>> interceptors;
+  private final Descriptor descriptor;
 
   @SuppressWarnings(
       "java:S3011") // setAccessible is load-bearing for a reflective invocation library
@@ -48,7 +49,17 @@ class DefaultMethodInvoker<A> implements MethodInvoker<A> {
     this.target = target;
     this.bindings = bindings;
     this.interceptors = interceptors;
+    this.descriptor =
+        new Descriptor(
+            method.getDeclaringClass().getName(),
+            method.getName(),
+            interceptors.stream().map(Object::toString).toList());
     method.setAccessible(true);
+  }
+
+  @Override
+  public Descriptor describe() {
+    return descriptor;
   }
 
   @Override

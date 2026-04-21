@@ -76,6 +76,11 @@ public final class JakartaValidationInterceptor implements MethodInterceptor<Obj
     return result;
   }
 
+  @Override
+  public String toString() {
+    return "Jakarta Bean Validation";
+  }
+
   private static Class<?>[] resolveGroups(Object target, Method method) {
     ValidationGroups annotation = Annotations.findOnMethod(method, ValidationGroups.class);
     if (annotation == null) {

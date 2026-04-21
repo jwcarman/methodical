@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-04-21
+
+### Breaking changes
+
+- **`MethodInvoker` is no longer a `@FunctionalInterface`.** A new abstract method `describe()` returning a `MethodInvoker.Descriptor` has been added, so lambda expressions no longer satisfy the interface. Obtain invokers via `MethodInvoker.builder(...)` — which has always been the documented entry point — and the descriptor is populated automatically.
+
+### Added
+
+- **`MethodInvoker.describe()`** returns an inert, human-readable snapshot of what the invoker wraps, intended for observability surfaces (actuator endpoints, logs, diagnostics). The snapshot is precomputed at construction and contains:
+  - `declaringClassName` — fully-qualified name of the class declaring the method (matches `Method#getDeclaringClass`).
+  - `methodName` — the method's simple name.
+  - `interceptors` — `toString()` of each interceptor in registration order (outermost first).
+- **`JakartaValidationInterceptor.toString()`** now returns `"Jakarta Bean Validation"` so descriptors read naturally instead of `ClassName@hashcode`.
+
 ## [0.8.0] - 2026-04-19
 
 ### Breaking changes
@@ -261,7 +275,8 @@ public class HeaderResolver implements ParameterResolver<HttpRequest> {
 - Runtime exceptions from invoked methods unwrapped and rethrown.
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
-[Unreleased]: https://github.com/jwcarman/methodical/compare/0.8.0...HEAD
+[Unreleased]: https://github.com/jwcarman/methodical/compare/0.9.0...HEAD
+[0.9.0]: https://github.com/jwcarman/methodical/releases/tag/0.9.0
 [0.8.0]: https://github.com/jwcarman/methodical/releases/tag/0.8.0
 [0.7.0]: https://github.com/jwcarman/methodical/releases/tag/0.7.0
 [0.6.1]: https://github.com/jwcarman/methodical/releases/tag/0.6.1

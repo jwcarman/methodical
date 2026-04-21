@@ -77,6 +77,11 @@ class JakartaValidationInterceptorTest {
   }
 
   @Test
+  void toString_describes_what_the_interceptor_does() {
+    assertThat(interceptor).hasToString("Jakarta Bean Validation");
+  }
+
+  @Test
   void constructor_rejects_null_validator() {
     assertThatThrownBy(() -> new JakartaValidationInterceptor(null))
         .isInstanceOf(NullPointerException.class);

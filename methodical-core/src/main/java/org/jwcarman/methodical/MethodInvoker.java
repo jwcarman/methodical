@@ -16,6 +16,7 @@
 package org.jwcarman.methodical;
 
 import java.lang.reflect.Method;
+import java.util.List;
 import org.jwcarman.specular.TypeRef;
 
 /**
@@ -26,7 +27,6 @@ import org.jwcarman.specular.TypeRef;
  * Object, TypeRef)}. The returned {@link Builder} lets you attach resolvers and interceptors
  * fluently before finalizing with {@link Builder#build()}.
  */
-@FunctionalInterface
 public interface MethodInvoker<A> {
 
   /**
@@ -34,6 +34,18 @@ public interface MethodInvoker<A> {
    * the method's return value (or {@code null} for {@code void} returns).
    */
   Object invoke(A argument);
+
+  /**
+   * Returns an inert, human-readable snapshot of what this invoker wraps. Intended for
+   * observability surfaces (actuator endpoints, logs, diagnostics) — not for invocation.
+   */
+  Descriptor describe();
+
+  /**
+   * Snapshot of the method an invoker wraps, plus a {@code toString()} view of its interceptor
+   * chain in registration order (outermost first).
+   */
+  record Descriptor(String declaringClassName, String methodName, List<String> interceptors) {}
 
   /** Starts a fluent build of a {@code MethodInvoker<A>} for {@code method} on {@code target}. */
   static <A> Builder<A> builder(Method method, Object target, Class<A> argumentType) {
