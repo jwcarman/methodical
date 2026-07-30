@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-30
+
+### Changed
+
+- **`JakartaValidationInterceptor` memoizes validation-group resolution.** The `@ValidationGroups` lookup (a hierarchy walk over the target's superclasses and interfaces, each visited via `getDeclaredMethods()`, which allocates a fresh `Method[]`) is a pure function of the `(method, target class)` pair and now runs once per distinct pair instead of on every invocation. Under load this removes the reflection and its `Method[]`/`Class[]` allocation from the hot path entirely; behavior is unchanged. The cache is scoped to the interceptor instance (bounded by the application's handler-method set, no eviction needed).
+
 ## [0.9.2] - 2026-04-21
 
 ### Changed
@@ -288,6 +294,7 @@ public class HeaderResolver implements ParameterResolver<HttpRequest> {
 - Checked exceptions and reflection failures wrapped in `MethodInvocationException`.
 
 [Unreleased]: https://github.com/jwcarman/methodical/compare/0.9.2...HEAD
+[0.10.0]: https://github.com/jwcarman/methodical/releases/tag/0.10.0
 [0.9.2]: https://github.com/jwcarman/methodical/releases/tag/0.9.2
 [0.9.1]: https://github.com/jwcarman/methodical/releases/tag/0.9.1
 [0.9.0]: https://github.com/jwcarman/methodical/releases/tag/0.9.0

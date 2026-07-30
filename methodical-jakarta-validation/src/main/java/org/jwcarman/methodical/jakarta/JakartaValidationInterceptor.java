@@ -22,8 +22,10 @@ import jakarta.validation.executable.ExecutableValidator;
 import jakarta.validation.groups.Default;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jwcarman.methodical.MethodInterceptor;
 import org.jwcarman.methodical.MethodInvocation;
 
@@ -32,8 +34,11 @@ import org.jwcarman.methodical.MethodInvocation;
  * proceeds and on the return value after it returns normally. Throws {@link
  * ConstraintViolationException} on any violation.
  *
- * <p>Validation groups are resolved per-invocation from a {@link ValidationGroups} annotation on
- * the invoked method (or on the target class), defaulting to {@link Default} when absent. Static
+ * <p>Validation groups are resolved from a {@link ValidationGroups} annotation on the invoked
+ * method (or on the target class), defaulting to {@link Default} when absent. The resolution is a
+ * pure function of the {@code (method, target class)} pair — the annotation does not change at
+ * runtime — so results are memoized: the reflective hierarchy walk (which allocates a fresh {@code
+ * Method[]} per visited type) runs once per distinct pair rather than on every invocation. Static
  * methods and invocations with a {@code null} target are skipped.
  *
  * <p>This interceptor does not depend on the caller-supplied argument type, so it is declared as
@@ -45,6 +50,15 @@ public final class JakartaValidationInterceptor implements MethodInterceptor<Obj
   private static final Class<?>[] DEFAULT_GROUPS = {Default.class};
 
   private final ExecutableValidator executableValidator;
+
+  // Memoizes resolveGroups by (method, target class). The interceptor is a single shared instance
+  // reused across every intercepted method, so this cache is bounded by the app's
+  // (handler method x concrete target class) pairs — small and stable, no eviction needed. Scoped
+  // to the instance rather than a library-global static so it is not retained beyond this
+  // interceptor's lifetime.
+  private final Map<GroupsKey, Class<?>[]> groupsCache = new ConcurrentHashMap<>();
+
+  private record GroupsKey(Method method, Class<?> targetType) {}
 
   public JakartaValidationInterceptor(Validator validator) {
     this.executableValidator = Objects.requireNonNull(validator, "validator").forExecutables();
@@ -81,10 +95,16 @@ public final class JakartaValidationInterceptor implements MethodInterceptor<Obj
     return "Validates method parameters and return value against Jakarta Bean Validation constraints";
   }
 
-  private static Class<?>[] resolveGroups(Object target, Method method) {
+  private Class<?>[] resolveGroups(Object target, Method method) {
+    return groupsCache.computeIfAbsent(
+        new GroupsKey(method, target.getClass()),
+        key -> computeGroups(key.method(), key.targetType()));
+  }
+
+  private static Class<?>[] computeGroups(Method method, Class<?> targetType) {
     ValidationGroups annotation = Annotations.findOnMethod(method, ValidationGroups.class);
     if (annotation == null) {
-      annotation = Annotations.findOnClass(target.getClass(), ValidationGroups.class);
+      annotation = Annotations.findOnClass(targetType, ValidationGroups.class);
     }
     return annotation != null ? annotation.value() : DEFAULT_GROUPS;
   }

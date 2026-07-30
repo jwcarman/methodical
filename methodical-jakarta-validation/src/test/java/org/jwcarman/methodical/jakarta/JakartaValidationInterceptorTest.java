@@ -175,4 +175,22 @@ class JakartaValidationInterceptorTest {
         interceptor.intercept(invocationOf(m, new Service(), "arg", new Object[] {""}, "ok"));
     assertThat(result).isEqualTo("ok");
   }
+
+  @Test
+  void group_resolution_is_memoized_without_altering_behavior() throws Exception {
+    // resolveGroups is now cached by (method, target class); repeated invocations must resolve
+    // the same groups every time. A corrupted or mis-keyed cache would flip one of these.
+    Method grouped = Service.class.getMethod("groupedEcho", String.class);
+    Method plain = Service.class.getMethod("echo", String.class);
+    for (int i = 0; i < 5; i++) {
+      MethodInvocation<String> failing =
+          invocationOf(grouped, new Service(), "arg", new Object[] {""}, "unreached");
+      assertThatThrownBy(() -> interceptor.intercept(failing))
+          .isInstanceOf(ConstraintViolationException.class);
+      assertThat(
+              interceptor.intercept(
+                  invocationOf(plain, new Service(), "arg", new Object[] {"hi"}, "hi")))
+          .isEqualTo("hi");
+    }
+  }
 }
